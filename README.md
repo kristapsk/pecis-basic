@@ -1,6 +1,6 @@
 # Pēcis BASIC — tīmekļa terminālis
 
-Neatkarīgs, izglītojošs retro BASIC interpretators, kuru iedvesmojusi B. Martuzāna 1986. gada grāmata **«Kā Pēcis Beiskāns Maiju Saprātiņu programmēt mācīja»**.
+Neatkarīgs, izglītojošs retro BASIC interpretators, kuru iedvesmojusi B. Martuzāna 1986. gada grāmata **«Kā Pēcis Beisikāns Maiju Saprātiņu programmēt mācīja»**.
 
 Grāmata: https://laacz.lv/f/txt/ka-pecis-beiskans-maiju-sapratinu-programmet-macija/
 
