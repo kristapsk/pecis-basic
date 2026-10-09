@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="lv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#131b1b">
+  <meta name="description" content="Pēcis BASIC — retro BASIC programmēšanas terminālis, iedvesmots no B. Martuzāna 1986. gada grāmatas.">
+  <title>Pēcis BASIC — programmēšanas terminālis</title>
+  <style>
+    :root{--bg:#101919;--panel:#1b2524;--panel-2:#212d2b;--cream:#e8e0c8;--muted:#9aa99e;--hair:#3a4843;--bright:#a4f5ac;--green:#73d78b;--dark:#03140c;--display:#a4f5ac;--display-soft:#5ba978;--light:#f7ead2;--mono:'Courier New',Consolas,monospace;--sans:system-ui,-apple-system,'Segoe UI',sans-serif}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--cream);font-family:var(--sans)}
+    body:before{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,#31504738,transparent 49%),radial-gradient(ellipse at 90% 100%,#253c363b,transparent 40%);pointer-events:none}
+    button,input,textarea,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #c7f3bf;outline-offset:3px}
+    a{color:#b6e4bf;text-decoration:underline;text-underline-offset:3px}
+    .shell{position:relative;max-width:1570px;margin:0 auto;padding:28px 32px 44px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-bottom:23px;border-bottom:1px solid var(--hair)}
+    .brand{display:flex;align-items:center;gap:14px}.mark{background:#b8d6b5;color:#173124;display:grid;place-items:center;width:42px;height:42px;border-radius:9px;font:700 22px var(--mono);box-shadow:inset 0 0 0 2px #183f2644}
+    .brand-name{font-size:19px;font-weight:700;letter-spacing:.11em}.brand-sub{font-family:var(--mono);font-size:10px;letter-spacing:.07em;color:#91aa9b;margin-top:4px}
+    .topright{display:flex;align-items:center;gap:10px}.online{font:11px var(--mono);color:#afc6b4;padding:8px 11px;border:1px solid #3d5349;border-radius:30px}.dot{display:inline-block;width:7px;height:7px;background:#81d995;border-radius:50%;margin-right:8px;box-shadow:0 0 9px #81d995}
+    .guide-link{font:12px var(--mono);border:1px solid #536158;border-radius:7px;padding:10px 13px;text-decoration:none;color:#f6e9c9;white-space:nowrap}.guide-link:hover{background:#304039}
+    .intro{display:flex;justify-content:space-between;gap:25px;padding:29px 0 26px;align-items:end}.eyebrow{color:#b2d5bc;letter-spacing:.14em;font:11px var(--mono);text-transform:uppercase;margin:0 0 13px}.intro h1{font-size:clamp(28px,3.3vw,47px);font-weight:600;letter-spacing:-.045em;line-height:1.12;margin:0}.intro p{max-width:630px;margin:12px 0 0;font-size:14px;line-height:1.6;color:#a9bbb0}.edition{font:11px var(--mono);color:#bdc9ba;text-align:right;white-space:nowrap;line-height:1.9}
+    .workspace{display:grid;grid-template-columns:minmax(255px,310px) minmax(0,1fr);gap:20px;align-items:start}
+    .left{display:flex;flex-direction:column;gap:14px}.sidepanel{border:1px solid #384a42;background:#202b29;border-radius:10px;overflow:hidden}.sidehead{display:flex;align-items:center;justify-content:space-between;padding:14px 17px;border-bottom:1px solid #384a42}.sidehead h2{margin:0;font-size:12px;font-weight:600;letter-spacing:.075em;text-transform:uppercase}.count{font:10px var(--mono);color:#8fa597}.sidebody{padding:16px 17px}
+    .lesson{display:block;width:100%;padding:12px 13px;background:#26352f;border:1px solid #3b5545;border-radius:6px;text-align:left;color:#ecebd8;margin-bottom:8px;transition:background .15s}.lesson:last-child{margin-bottom:0}.lesson:hover{background:#344b3c}.lesson-title{display:block;font-size:13px;font-weight:600}.lesson-sub{font:10px var(--mono);color:#acbeaf;margin-top:5px}.lesson-arrow{float:right;font:14px var(--mono);color:#c2d7ba}
+    .quickref{display:grid;grid-template-columns:80px 1fr;gap:11px 9px;font-size:12px;line-height:1.5;color:#b8c6b9}.quickref code{font:11px var(--mono);color:#b7ecb3}.hint{font-size:12px;line-height:1.6;color:#abbbae;margin:0}.hint+.hint{margin-top:11px}.small{font-size:11px;color:#879f92}
+    .terminal-case{padding:15px 15px 13px;background:linear-gradient(135deg,#9a9d89,#666e64 15%,#343f3a 60%,#929688);border:1px solid #7c8579;border-radius:20px;box-shadow:0 22px 65px #0006,inset 0 2px 1px #d1d4ae88,inset 0 -2px 3px #08120f77}
+    .terminal-frame{padding:16px 18px 18px;border-radius:12px;background:#12231a;box-shadow:inset 0 0 0 2px #1a291f,inset 0 9px 24px #000a;border:1px solid #0c1710;position:relative;overflow:hidden}
+    .screen{min-height:520px;height:min(66vh,720px);display:flex;flex-direction:column;background:radial-gradient(ellipse at 50% 40%,#0a2a17 0%,#061a0d 72%,#020d07 100%);border-radius:8px;color:var(--display);font:var(--font-size,14px)/1.48 var(--mono);letter-spacing:.015em;text-shadow:0 0 8px #67ee8b55;position:relative;overflow:hidden}
+    .screen:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.20;background:repeating-linear-gradient(transparent 0,transparent 3px,#000 4px,#000 5px);z-index:2}
+    .screen:after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 45px #0008;border-radius:8px;z-index:2}
+    .screen-head{position:relative;z-index:3;border-bottom:1px solid #37644177;margin:0 18px;padding:15px 0 13px;display:flex;justify-content:space-between;gap:10px;font-size:11px;letter-spacing:.06em;color:#8bd69e}
+    .screen-main{overflow-y:auto;min-height:0;flex:1;padding:17px 20px 10px;scrollbar-color:#41664a #06160c;scrollbar-width:thin;position:relative;z-index:1;white-space:pre-wrap;overflow-wrap:anywhere;overscroll-behavior:contain}.screen-main .banner{color:#c4ffd0}.screen-main .old-input{color:#bcecc5}.screen-main .err{color:#ffbd8d;text-shadow:0 0 9px #fa934c66}.screen-main .soft{color:#77b987}
+    .command-row{display:flex;align-items:center;gap:11px;padding:14px 19px 18px;position:relative;z-index:3;border-top:1px solid #305c3980;background:#03160b66}.prompt{flex:none;color:#a7f2b4}.command-input{min-width:0;flex:1;color:#d1fbd3;background:transparent;outline:none!important;border:0;border-radius:0;font:inherit;letter-spacing:inherit;caret-color:#ceffd3}.command-input::placeholder{color:#649e70}.input-pending .prompt{color:#f7dda1}.input-pending .command-input{color:#ffe8b1}
+    .terminal-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 9px 2px 12px;font:10px var(--mono);color:#d6d8c4;letter-spacing:.08em}.led{display:inline-block;height:7px;width:7px;border-radius:100%;background:#8bef9d;box-shadow:0 0 7px #8bef9d;margin-right:9px}.footer-id{color:#bec9b8}
+    .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:16px 0 0}.btn{display:inline-flex;gap:8px;align-items:center;justify-content:center;min-height:37px;padding:0 13px;background:#263631;color:#d1e2ce;border:1px solid #43584a;border-radius:7px;font:11px var(--mono);letter-spacing:.02em}.btn:hover{background:#34483a}.btn.primary{background:#c8debd;color:#173022;border-color:#b8d1a8;font-weight:500}.btn.primary:hover{background:#e2f6d8}.btn.warn{color:#eed0bc;border-color:#6a4b40}.btn:disabled{opacity:.4;cursor:not-allowed}.push-right{margin-left:auto}
+    select.btn{appearance:none;padding-right:25px;background-image:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="10" height="6"%3E%3Cpath fill="none" stroke="%23c3dec7" stroke-width="1.5" d="m1 1 4 4 4-4"/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 9px center}
+    .under{font:11px/1.7 var(--mono);color:#8fa799;margin-top:13px}.under kbd{color:#d7e6d4;border:1px solid #46604d;padding:2px 5px;border-radius:3px;background:#25342a}
+    .editor{display:none;margin-top:13px;border:1px solid #43584a;border-radius:9px;background:#1c2a24;padding:14px}.editor.visible{display:block}.editor h2{margin:0 0 8px;font-size:14px}.editor p{font-size:12px;color:#adbfaf;margin:0 0 12px}.editor textarea{resize:vertical;min-height:220px;width:100%;padding:14px;border-radius:6px;border:1px solid #45624e;background:#07190d;color:#bcf2c6;font:12px/1.5 var(--mono);tab-size:2}.editor-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .foot{display:flex;justify-content:space-between;gap:24px;margin-top:27px;padding-top:20px;border-top:1px solid #34463e;color:#849e8f;font-size:11px;line-height:1.6}.foot a{color:#adcdac}
+    .toast{position:fixed;bottom:22px;right:22px;background:#d9edd0;color:#16311f;padding:12px 18px;border-radius:8px;box-shadow:0 9px 40px #0007;font-size:13px;z-index:20;display:none}.toast.show{display:block}
+    .amber{--display:#fbd68a;--display-soft:#b89257}.amber .screen{background:radial-gradient(ellipse at 50% 40%,#30200a 0%,#1b1207 75%,#090803 100%);text-shadow:0 0 8px #ffc35b55}.amber .screen:before{opacity:.24}.amber .screen-head{color:#ebbe73;border-bottom-color:#795a2c88}.amber .prompt{color:#fbe3a8}.amber .screen-main .banner{color:#ffe4aa}.amber .screen-main .old-input{color:#e6c58d}.amber .command-input{color:#ffdfa5;caret-color:#ffdfa5}.amber .command-row{border-top-color:#9b763e66;background:#1a120866}.amber .command-input::placeholder{color:#9e7c46}
+    @media(max-width:900px){.shell{padding:17px 16px 32px}.workspace{grid-template-columns:1fr}.left{display:grid;grid-template-columns:1fr 1fr;align-items:start}.left .sidepanel:first-child{grid-row:span 2}.screen{height:520px;min-height:440px}.edition{display:none}.intro{padding:26px 0}.intro h1{font-size:32px}}
+    @media(max-width:580px){.top{align-items:start}.topright .online{display:none}.brand-name{font-size:16px}.brand-sub{font-size:9px}.intro h1{font-size:30px}.left{display:flex}.terminal-case{padding:8px;border-radius:14px}.terminal-frame{padding:8px;border-radius:10px}.screen{height:530px;min-height:380px;font-size:12px}.screen-main{padding:14px 11px}.screen-head{margin:0 9px;font-size:9px}.command-row{padding:13px 10px}.controls{gap:6px}.btn{padding:0 10px}.foot{display:block}.push-right{margin-left:0}}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header class="top">
+    <div class="brand"><div class="mark" aria-hidden="true">P&gt;</div><div><div class="brand-name">PĒCIS BASIC</div><div class="brand-sub">VĒSTURISKĀS PROGRAMMĒŠANAS LABORATORIJA</div></div></div>
+    <div class="topright"><span class="online"><span class="dot"></span>DARBOJAS PĀRLŪKĀ</span><a class="guide-link" href="https://laacz.lv/f/txt/ka-pecis-beiskans-maiju-sapratinu-programmet-macija/" target="_blank" rel="noopener">ATVĒRT GRĀMATU ↗</a></div>
+  </header>
+  <section class="intro"><div><div class="eyebrow">BASIC / LATVIJA / 1986</div><h1>Programmē kā toreiz.</h1><p>Teksta terminālis, rindu numuri, <strong>READY</strong> uzvedne un programma atmiņā. Iedvesmots no B. Martuzāna grāmatas “Kā Pēcis Beiskāns Maiju Saprātiņu programmēt mācīja”.</p></div><div class="edition">RETRO INTERPRETATORS<br>AGRĪNA VERSIJA · 01</div></section>
+  <section class="workspace">
+    <aside class="left" aria-label="Nodarbības un palīdzība">
+      <div class="sidepanel"><div class="sidehead"><h2>Izmēģini programmu</h2><span class="count">04 PIEMĒRI</span></div><div class="sidebody">
+        <button class="lesson" data-example="hello"><span class="lesson-arrow">↗</span><span class="lesson-title">01 · Sveika, Maija!</span><span class="lesson-sub">PRINT / RUN</span></button>
+        <button class="lesson" data-example="loop"><span class="lesson-arrow">↗</span><span class="lesson-title">02 · Skaitīsim kopā</span><span class="lesson-sub">FOR / NEXT / IF</span></button>
+        <button class="lesson" data-example="guess"><span class="lesson-arrow">↗</span><span class="lesson-title">03 · Uzmini skaitli</span><span class="lesson-sub">INPUT / GOTO / RND</span></button>
+        <button class="lesson" data-example="data"><span class="lesson-arrow">↗</span><span class="lesson-title">04 · Skaitļu tabula</span><span class="lesson-sub">DIM / DATA / READ</span></button>
+      </div></div>
+      <div class="sidepanel"><div class="sidehead"><h2>Ātrā uzziņa</h2><span class="count">KOMANDAS</span></div><div class="sidebody"><div class="quickref"><code>10 PRINT</code><span>Ierakstīt programmas rindu</span><code>LIST</code><span>Parādīt programmas tekstu</span><code>RUN</code><span>Izpildīt programmu</span><code>NEW</code><span>Dzēst programmu no atmiņas</span><code>SAVE</code><span>Saglabāt vietējā “diskā”</span><code>LOAD</code><span>Ielādēt no “diska”</span><code>FILES</code><span>Parādīt saglabātās programmas</span><code>RENUM</code><span>Pārnumurēt programmas rindas</span><code>HELP</code><span>Parādīt visas pamatkomandas</span></div></div></div>
+      <div class="sidepanel"><div class="sidehead"><h2>Par rekonstrukciju</h2><span class="count">V1 / TESTĒŠANA</span></div><div class="sidebody"><p class="hint">Šis ir <strong>darbojošs BASIC dialekta atveidojums</strong>, nevis oriģinālā lieldatora ROM emulators. Daļa vēsturisko komandu un nianses vēl jāsalīdzina ar grāmatas pilnu tekstu.</p><p class="hint">Komanda <code>SAVE DK1:TESTS</code> saglabā programmu šajā pārlūkā. <code>SAVE LP1:</code> izdrukā listingu terminālī.</p><p class="hint small">Grāmata atveras atsevišķā cilnē; tās skenējumi šeit netiek pārpublicēti.</p></div></div>
+    </aside>
+    <div class="right">
+      <div class="terminal-case">
+        <div class="terminal-frame"><div class="screen" id="screen" aria-label="BASIC terminālis">
+          <div class="screen-head"><span>MAIJA / BASIC SISTĒMA</span><span>DK1: GATAVS &nbsp;·&nbsp; LP1: GATAVS</span></div>
+          <div class="screen-main" id="output" role="log" aria-live="polite" aria-relevant="additions text"></div>
+          <form class="command-row" id="cmdForm" autocomplete="off"><label class="prompt" for="command" id="prompt">READY &gt;</label><input id="command" class="command-input" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Ieraksti BASIC komandu" placeholder="raksti komandu un spied ENTER" autofocus></form>
+        </div></div>
+        <div class="terminal-footer"><span><span class="led" id="statusLed"></span><span id="statusLabel">READY</span></span><span class="footer-id">BASIC / 001 &nbsp; · &nbsp; LV</span></div>
+      </div>
+      <div class="controls" aria-label="Vadības pogas">
+        <button class="btn primary" id="runBtn">▶ RUN</button>
+        <button class="btn" id="listBtn">LIST</button>
+        <button class="btn" id="newBtn">NEW</button>
+        <button class="btn warn" id="breakBtn" title="Pārtraukt programmu">■ BREAK</button>
+        <button class="btn" id="editBtn">✎ REDAKTORS</button>
+        <button class="btn" id="exportBtn" title="Lejupielādēt programmu .bas failā">↓ .BAS</button>
+        <button class="btn" id="importBtn" title="Ielādēt programmu no .bas faila">↑ .BAS</button>
+        <input type="file" accept=".bas,.txt,text/plain" id="fileInput" hidden>
+        <select id="phosphor" class="btn push-right" aria-label="Ekrāna krāsa"><option value="green">ZAĻAIS CRT</option><option value="amber">DZINTARA CRT</option></select>
+      </div>
+      <div class="under"><kbd>ENTER</kbd> komanda &nbsp;·&nbsp; <kbd>↑</kbd>/<kbd>↓</kbd> vēsture &nbsp;·&nbsp; <kbd>CTRL+C</kbd> BREAK &nbsp;·&nbsp; <kbd>CTRL+ENTER</kbd> RUN &nbsp;·&nbsp; <kbd>CTRL+L</kbd> CLS</div>
+      <section class="editor" id="editor"><h2>Programmas teksta redaktors</h2><p>Ērtai garāku programmu ievadei. Saglabāšana aizstāj programmu termināļa atmiņā.</p><textarea id="source" aria-label="BASIC programmas pirmkods" spellcheck="false"></textarea><div class="editor-actions"><button class="btn primary" id="applyBtn">IEVADĪT ATMIŅĀ</button><button class="btn" id="applyRunBtn">IEVADĪT UN RUN</button><button class="btn" id="closeEditorBtn">AIZVĒRT</button></div></section>
+    </div>
+  </section>
+  <footer class="foot"><div>Neatkarīgs izglītojošs projekts, iedvesmots no B. Martuzāna 1986. gada grāmatas.<br>Oriģinālā datora precīza savietojamība vēl nav verificēta.</div><div><a href="https://laacz.lv/f/txt/ka-pecis-beiskans-maiju-sapratinu-programmet-macija/" target="_blank" rel="noopener">Lasīt oriģinālo grāmatu ↗</a></div></footer>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script src="basic.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
