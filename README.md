@@ -2,7 +2,7 @@
 
 Neatkarīgs, izglītojošs retro BASIC interpretators, kuru iedvesmojusi B. Martuzāna 1986. gada grāmata **«Kā Pēcis Beisikāns Maiju Saprātiņu programmēt mācīja»**.
 
-Grāmata: https://laacz.lv/f/txt/ka-pecis-beiskans-maiju-sapratinu-programmet-macija/
+Grāmata: https://laacz.lv/f/txt/ka-pecis-beiskans-maiju-sapratinu-programmet-macija/web/
 
 > **Savietojamības statuss:** pašlaik darbojošs klasiskā BASIC apakškopas interpretators ar lieldatora termināļa saskarni. Tas nav konkrēta vēsturiska datora CPU, ROM vai faktiskā BASIC dialekta precīzs emulators. Pilnu grāmatas skenējumu šajā izstrādes vidē neizdevās lejupielādēt un sistemātiski salīdzināt. Tāpēc komandu kopu, ekrāna formātu, kļūdu tekstus un citus sīkumus vēl nepieciešams salīdzināt ar oriģinālu.
 
