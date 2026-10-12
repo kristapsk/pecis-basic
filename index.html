@@ -82,7 +82,8 @@
         <button class="btn" id="exportBtn" title="Lejupielādēt programmu .bas failā">↓ .BAS</button>
         <button class="btn" id="importBtn" title="Ielādēt programmu no .bas faila">↑ .BAS</button>
         <input type="file" accept=".bas,.txt,text/plain" id="fileInput" hidden>
-        <select id="phosphor" class="btn push-right" aria-label="Ekrāna krāsa"><option value="green">ZAĻAIS CRT</option><option value="amber">DZINTARA CRT</option></select>
+        <select id="charset" class="btn push-right" aria-label="Termināļa rakstzīmju kopa"><option value="koi7">KOI-7 N2 · 1980s</option><option value="modern">MODERNS TEKSTS</option></select>
+        <select id="phosphor" class="btn" aria-label="Ekrāna krāsa"><option value="green">ZAĻAIS CRT</option><option value="amber">DZINTARA CRT</option></select>
       </div>
       <div class="under"><kbd>ENTER</kbd> komanda &nbsp;·&nbsp; <kbd>↑</kbd>/<kbd>↓</kbd> vēsture &nbsp;·&nbsp; <kbd>CTRL+C</kbd> BREAK &nbsp;·&nbsp; <kbd>CTRL+ENTER</kbd> RUN &nbsp;·&nbsp; <kbd>CTRL+L</kbd> CLS</div>
       <section class="editor" id="editor"><h2>Programmas teksta redaktors</h2><p>Ērtai garāku programmu ievadei. Saglabāšana aizstāj programmu termināļa atmiņā.</p><textarea id="source" aria-label="BASIC programmas pirmkods" spellcheck="false"></textarea><div class="editor-actions"><button class="btn primary" id="applyBtn">IEVADĪT ATMIŅĀ</button><button class="btn" id="applyRunBtn">IEVADĪT UN RUN</button><button class="btn" id="closeEditorBtn">AIZVĒRT</button></div></section>

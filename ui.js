@@ -7,6 +7,18 @@ const memoryStore={getItem:k=>localMemory.has(k)?localMemory.get(k):null,setItem
 let storage=memoryStore;try{localStorage.setItem('pecis.basic.storage-check','yes');localStorage.removeItem('pecis.basic.storage-check');storage=localStorage;}catch(_){}
 let history=[], historyPosition=0, inputResolver=null, busy=false;
 let pending='', toastTimer=null;
+// KOI-7 N2 (short KOI): ASCII 0x60-0x7E displays uppercase Cyrillic.
+// This is a display-layer emulation; BASIC program data stays unchanged.
+const shortKoi='ЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧ';
+let charset=storage.getItem('pecis.basic.charset')==='modern'?'modern':'koi7';
+function displayText(value){
+ const text=String(value);
+ return charset==='koi7'?text.replace(/[\x60-\x7e]/g,ch=>shortKoi[ch.charCodeAt(0)-0x60]):text;
+}
+function terminalInput(value){
+ return charset==='koi7'?String(value).replace(/[a-z]/g,ch=>ch.toUpperCase()):String(value);
+}
+
 const examples={
   hello:`10 REM SVEIKA, MAIJA!\n20 PRINT "LABDIEN, MAIJA!"\n30 PRINT "TE RUNA PECIS BEISKANS."\n40 PRINT "MES MACAMIES PROGRAMMET!"\n50 END`,
   loop:`10 REM SKAITISIM KOPA\n20 PRINT "KAPINOS LIDZ 10:"\n30 FOR I=1 TO 10\n40 PRINT I; " ";\n50 NEXT I\n60 PRINT\n70 PRINT "TAGAD ATPAKAL:"\n80 FOR I=10 TO 1 STEP -1\n90 PRINT I; " ";\n100 NEXT I\n110 PRINT`,
@@ -31,7 +43,7 @@ const examples={
 };
 function add(text, className=''){
   if(!text)return;
-  let node=document.createElement('span');node.className=className;node.textContent=text;output.append(node);
+  let node=document.createElement('span');node.className=className;node.dataset.raw=text;node.textContent=displayText(text);output.append(node);
   output.scrollTop=output.scrollHeight;
   // Retain a bounded scrollback to avoid unbounded browser memory use.
   while(output.childNodes.length>1500)output.firstChild.remove();
@@ -51,7 +63,9 @@ async function command(text, echo=true){
  history.push(text);if(history.length>100)history.shift();historyPosition=history.length;
  busy=true;try{await basic.command(text);}catch(err){showError(err);}finally{busy=false;input.focus();}
 }
-form.addEventListener('submit',ev=>{ev.preventDefault();const text=input.value;input.value='';command(text);});
+form.addEventListener('submit',ev=>{ev.preventDefault();const text=terminalInput(input.value);input.value='';command(text);});
+// A historical keyboard provides capital Latin letters for BASIC entry.
+input.addEventListener('input',()=>{if(charset==='koi7')input.value=terminalInput(input.value);});
 input.addEventListener('keydown',ev=>{
  if(ev.key==='ArrowUp'&&!inputResolver){ev.preventDefault();if(historyPosition>0)historyPosition--;input.value=history[historyPosition]||'';}
  if(ev.key==='ArrowDown'&&!inputResolver){ev.preventDefault();historyPosition=Math.min(history.length,historyPosition+1);input.value=history[historyPosition]||'';}
@@ -68,6 +82,14 @@ $('newBtn').onclick=()=>{if(basic.lines.size&&!confirm('Dzēst visu programmu no
 $('breakBtn').onclick=interrupt;
 $('phosphor').onchange=e=>{document.body.classList.toggle('amber',e.target.value==='amber');storage.setItem('pecis.basic.phosphor',e.target.value);input.focus();};
 if(storage.getItem('pecis.basic.phosphor')==='amber'){$('phosphor').value='amber';document.body.classList.add('amber');}
+$('charset').value=charset;
+$('charset').onchange=e=>{
+ charset=e.target.value;
+ storage.setItem('pecis.basic.charset',charset);
+ output.querySelectorAll('[data-raw]').forEach(node=>{node.textContent=displayText(node.dataset.raw);});
+ if(charset==='koi7')input.value=terminalInput(input.value);
+ input.focus();
+};
 function showEditor(){const el=$('editor');el.classList.add('visible');$('source').value=basic.list();$('source').focus();}
 $('editBtn').onclick=()=>{$('editor').classList.contains('visible')?$('editor').classList.remove('visible'):showEditor();};
 $('closeEditorBtn').onclick=()=>{$('editor').classList.remove('visible');input.focus();};
