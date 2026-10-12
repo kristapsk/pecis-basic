@@ -43,7 +43,8 @@ const examples={
 };
 function add(text, className=''){
   if(!text)return;
-  let node=document.createElement('span');node.className=className;node.dataset.raw=text;node.textContent=displayText(text);output.append(node);
+  let node=document.createElement('span');node.className=className;node.dataset.raw=text;
+  node.textContent=(className==='soft'||className==='err')?text:displayText(text);output.append(node);
   output.scrollTop=output.scrollHeight;
   // Retain a bounded scrollback to avoid unbounded browser memory use.
   while(output.childNodes.length>1500)output.firstChild.remove();
@@ -86,7 +87,7 @@ $('charset').value=charset;
 $('charset').onchange=e=>{
  charset=e.target.value;
  storage.setItem('pecis.basic.charset',charset);
- output.querySelectorAll('[data-raw]').forEach(node=>{node.textContent=displayText(node.dataset.raw);});
+ output.querySelectorAll('[data-raw]').forEach(node=>{node.textContent=(node.classList.contains('soft')||node.classList.contains('err'))?node.dataset.raw:displayText(node.dataset.raw);});
  if(charset==='koi7')input.value=terminalInput(input.value);
  input.focus();
 };
