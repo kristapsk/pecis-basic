@@ -243,7 +243,7 @@
     async command(text) {
       const source=String(text).trim(); if(!source)return;
       if(this.running)throw new BasicError('PROGRAMMA JAU TIEK IZPILDĪTA');
-      const line=source.match(/^(\d+)(?:\s+(.*))?$/);
+      const line=source.match(/^(\d+)\s*(.*)$/);
       if(line) {
         const n=Number(line[1]); if(n<1||n>65535)throw new BasicError('NEPAREIZS RINDAS NUMURS');
         if(!line[2]||!line[2].trim())this.lines.delete(n);else this.lines.set(n,line[2].trim());return;

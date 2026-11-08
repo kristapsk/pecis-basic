@@ -30,5 +30,13 @@ async function check(name, program, match, inputs=[]) {
  await check('six digits: fraction', '10 PRINT 1/3', /0\.333333\n/);
  await check('six digits: large threshold', '10 PRINT 1000000', /1\.00000E\+6/);
  await check('six digits: STR$', '10 PRINT STR$(12^12)', /8\.91610E\+12/);
+ await b.command('NEW');
+ await b.command('10A=12');
+ await b.command('20B=20');
+ await b.command('30 PRINT A+B');
+ assert.match(b.list(),/^10 A=12\n20 B=20\n30 PRINT A\+B$/);
+ await b.run();assert.match(output,/32/);
+ await b.command('20');assert.doesNotMatch(b.list(),/^20 /m);
+ console.log('PASS numbered lines without spaces and deletion');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
