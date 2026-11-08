@@ -434,5 +434,49 @@ async function check(name, program, match, inputs=[]) {
  assert.match(fileJobs[0].text,/HELLO PRINTER/);
  b.hooks.linePrinter=null;
  console.log('PASS BASIC-11 shared virtual disk, file channels and LP printer');
+ // VFS creation metadata persists through fresh interpreter sessions.
+ const originalCreated='1986-11-21T14:35:20.000Z';
+ await b.command('NEW METADATATEST');
+ await b.command('10 PRINT "PERSISTENT"');
+ b.programCreated=originalCreated;
+ await b.command('SAVE DK1:METADATATEST');
+ const metaKey='pecis.basic.vfsmeta.DK1:METADATATEST.BAS';
+ assert.equal(JSON.parse(storage.getItem(metaKey)).created,originalCreated);
+ const session2=new Interpreter({print:()=>{},storage});
+ await session2.command('LOAD DK1:METADATATEST');
+ assert.equal(session2.programCreated,originalCreated);
+ assert.match(session2.listHeader(),/21-NOV-86/);
+ // Overwriting does not change the file's original creation timestamp.
+ await session2.command('20 END');
+ session2.programCreated='2000-01-01T00:00:00.000Z';
+ await session2.command('SAVE DK1:METADATATEST');
+ assert.equal(JSON.parse(storage.getItem(metaKey)).created,originalCreated);
+ await b.command('LOAD DK1:METADATATEST');
+ assert.equal(b.programCreated,originalCreated);
+ // Sequential .DAT files also receive persistent creation metadata.
+ await b.command('OPEN "DK1:METADATA" FOR OUTPUT AS FILE 7');
+ await b.command('PRINT #7: "HELLO"');
+ await b.command('CLOSE #7');
+ const dataMetaKey='pecis.basic.vfsmeta.DK1:METADATA.DAT';
+ const dataCreated=JSON.parse(storage.getItem(dataMetaKey)).created;
+ assert(!Number.isNaN(Date.parse(dataCreated)));
+ const session3=new Interpreter({print:()=>{},storage});
+ await session3.command('OPEN "DK1:METADATA" FOR OUTPUT AS FILE 7');
+ await session3.command('PRINT #7: "REPLACED"');
+ await session3.command('CLOSE #7');
+ assert.equal(JSON.parse(storage.getItem(dataMetaKey)).created,dataCreated);
+ // Legacy metadata are migrated along with program source.
+ storage.setItem('pecis.basic.file.LEGACYMETA','10 END');
+ storage.setItem('pecis.basic.meta.LEGACYMETA',JSON.stringify({name:'LEGACYMETA',created:originalCreated}));
+ await session3.command('LOAD DK1:LEGACYMETA');
+ assert.equal(session3.programCreated,originalCreated);
+ assert.equal(JSON.parse(storage.getItem('pecis.basic.vfsmeta.DK1:LEGACYMETA.BAS')).created,originalCreated);
+ // Old VFS files without metadata get a stable timestamp upon first access.
+ storage.setItem('pecis.basic.vfs.DK1:NOMETA.BAS','10 END');
+ await session3.command('LOAD DK1:NOMETA');
+ const recovered=JSON.parse(storage.getItem('pecis.basic.vfsmeta.DK1:NOMETA.BAS')).created;
+ await b.command('LOAD DK1:NOMETA');
+ assert.equal(b.programCreated,recovered);
+ console.log('PASS VFS creation timestamps across sessions, rewrites and migration');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

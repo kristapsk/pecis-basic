@@ -511,6 +511,23 @@
       if(!match)throw new BasicError('BAD FILE NAME');
       return match[1]+':'+match[2]+'.'+(match[3]||extension);
     }
+    // Shared VFS metadata: stored alongside the file and retained on rewrites.
+    // Existing pecis.basic.meta.* entries are migrated without losing creation time.
+    fileMetadata(path,created=null) {
+      const key='pecis.basic.vfsmeta.'+path;
+      let raw=this.hooks.storage?.getItem(key) ?? this.virtualFiles.get(key) ?? null;
+      const legacy=path.match(/^DK1:([^.]+)\.BAS$/);
+      if(raw===null&&legacy)raw=this.hooks.storage?.getItem('pecis.basic.meta.'+legacy[1]) ?? null;
+      let meta={};
+      if(raw!==null){try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))meta=parsed;}catch(_){/* Recover malformed metadata. */}}
+      if(!meta.created||Number.isNaN(Date.parse(meta.created)))
+        meta.created=(created&&!Number.isNaN(Date.parse(created)))?created:new Date().toISOString();
+      if(!meta.name&&path.endsWith('.BAS'))meta.name=path.slice(path.indexOf(':')+1,-4);
+      const serialized=JSON.stringify(meta);
+      this.virtualFiles.set(key,serialized);
+      if(this.hooks.storage?.getItem(key)!==serialized)this.hooks.storage?.setItem(key,serialized);
+      return meta;
+    }
     fileRead(path) {
       const key='pecis.basic.vfs.'+path;
       let value=this.hooks.storage?.getItem(key) ?? this.virtualFiles.get(key) ?? null;
@@ -518,15 +535,14 @@
       const legacy=path.match(/^DK1:([^.]+)\.BAS$/);
       if(value===null&&legacy){
         value=this.hooks.storage?.getItem('pecis.basic.file.'+legacy[1]) ?? null;
-        if(value!==null){
-          this.fileWrite(path,value);
-          const meta=this.hooks.storage?.getItem('pecis.basic.meta.'+legacy[1]);
-          if(meta!==null&&meta!==undefined)this.hooks.storage?.setItem('pecis.basic.vfsmeta.'+path,meta);
-        }
+        if(value!==null)this.fileWrite(path,value);
       }
+      if(value!==null)this.fileMetadata(path);
       return value;
     }
-    fileWrite(path,value) {
+    fileWrite(path,value,created=null) {
+      // Preserve original creation date if a file is overwritten.
+      this.fileMetadata(path,created);
       const key='pecis.basic.vfs.'+path;
       this.virtualFiles.set(key,String(value));
       this.hooks.storage?.setItem(key,String(value));
@@ -544,9 +560,10 @@
       this.storage();
       const path=this.filePath(spec.trim()||this.lastSaved,'BAS');
       const filename=path.slice(path.indexOf(':')+1).replace(/\.BAS$/,'');
-      this.fileWrite(path,this.list());
+      // On initial SAVE the program's creation date becomes the file's date.
+      // Further SAVE calls preserve the timestamp of the existing file.
+      this.fileWrite(path,this.list(),this.programCreated);
       this.programName=filename;
-      this.hooks.storage?.setItem('pecis.basic.vfsmeta.'+path,JSON.stringify({name:this.programName,created:this.programCreated}));
       this.lastSaved=filename;this.print('SAGLABĀTS '+path.replace(/\.BAS$/,'')+'\n');
     }
     load(spec){
@@ -557,8 +574,7 @@
       this.import(source);
       const filename=path.slice(path.indexOf(':')+1).replace(/\.BAS$/,'');
       this.programName=filename;
-      const raw=this.hooks.storage?.getItem('pecis.basic.vfsmeta.'+path);
-      if(raw){try{const meta=JSON.parse(raw);if(meta.created&&!Number.isNaN(Date.parse(meta.created)))this.programCreated=meta.created;}catch(_){/* Missing metadata is allowed. */}}
+      this.programCreated=this.fileMetadata(path).created;
       this.lastSaved=filename;this.print('IELĀDĒTS '+path.replace(/\.BAS$/,'')+'\n');
     }
     files(){
