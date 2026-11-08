@@ -260,11 +260,13 @@
       const m=source.match(/^([A-Za-z]+\$?|\?)(?:\s+(.*))?$/); const word=m?upper(m[1]):''; const rest=m?(m[2]||''):'';
       if(word==='RUN'||word==='RUNNH'){await this.run(rest,word==='RUN');return;}
       if(word==='LIST'||word==='LLIST'){const [from,to]=this.parseLineSpec(rest);this.print('\n'+this.listHeader()+'\n\n'+(this.list(from,to)||'')+'\n');return;}
+      if(word==='LISTNH'){const [from,to]=this.parseLineSpec(rest);this.print((this.list(from,to)||'')+'\n');return;}
       if(word==='NEW'){this.lines.clear();this.resetState();this.programName=upper(rest.trim()||'PROGRAMMA');this.programCreated=new Date().toISOString();return;}
       if(word==='CLEAR'){this.resetState();return;}
       if(word==='CLS'||word==='HOME'){this.hooks.clear();return;}
-      if(word==='HELP'){this.print('RUN  LIST  NEW  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
+      if(word==='HELP'){this.print('RUN  LIST  LISTNH  NEW  RESEQ  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
       if(word==='RENUM'){this.renumber(rest);return;}
+      if(word==='RESEQ'){this.resequence(rest);return;}
       if(word==='SAVE'){this.save(rest);return;}
       if(word==='LOAD'||word==='OLD'){this.load(rest);return;}
       if(word==='FILES'||word==='DIR'){this.files();return;}
@@ -288,6 +290,53 @@
         result.set(mapping.get(oldN),updated);
       }
       this.lines=result;this.print('RINDAS PĀRNUMURĒTAS\n');
+    }
+    resequence(rest) {
+      // BASIC-11: RESEQ [new-start],[old-start][-old-end][,step].
+      // RESEQ without arguments numbers the complete program 10,20,30,...
+      const spec=rest.trim();
+      let newStart=null, from=null, to=null, step=10;
+      if (/^\d+$/.test(spec)) {
+        newStart=Number(spec);
+      } else if (spec) {
+        const match=spec.match(/^(?:(\d*)\s*,\s*)?(\d*\s*(?:-\s*\d*)?)?(?:\s*,\s*(\d+))?$/);
+        if (!match || (!match[1] && !match[2] && !match[3]))
+          throw new BasicError('NEPAREIZI RESEQ PARAMETRI');
+        if (match[1]) newStart=Number(match[1]);
+        if (match[3]) step=Number(match[3]);
+        const range=(match[2]||'').replace(/\s/g,'');
+        if (range.includes('-')) {
+          const [a,b]=range.split('-');
+          if(a)from=Number(a);
+          if(b)to=Number(b);
+        } else if(range)from=Number(range);
+      }
+      if (!Number.isInteger(step)||step<=0 || (newStart!==null&&(!Number.isInteger(newStart)||newStart<=0)) ||
+          (from!==null&&from<=0) || (to!==null&&to<=0) ||
+          (from!==null&&to!==null&&from>to))
+        throw new BasicError('NEPAREIZI RESEQ PARAMETRI');
+      const old=[...this.lines.entries()].sort((a,b)=>a[0]-b[0]);
+      const selected=old.filter(([n])=>(from===null||n>=from)&&(to===null||n<=to));
+      if (!selected.length)return;
+      if (newStart===null) {
+        const previous=old.filter(([n])=>n<selected[0][0]);
+        newStart=(previous.length?previous[previous.length-1][0]:0)+step;
+      }
+      const mapping=new Map(selected.map(([n],i)=>[n,newStart+i*step]));
+      const selectedNumbers=new Set(mapping.keys());
+      const unaffected=new Set(old.filter(([n])=>!selectedNumbers.has(n)).map(([n])=>n));
+      if ([...mapping.values()].some(n=>n>65535||unaffected.has(n)))
+        throw new BasicError('RESEQ RINDAS NUMURU KONFLIKTS');
+      const result=new Map();
+      for(const [oldN,code] of old){
+        // Preserve references from every line, including lines outside the range.
+        let updated=code.replace(/\b(GOTO|GOSUB|THEN|ELSE|RESTORE)\s+(\d+)\b/gi,
+          (m,word,n)=>mapping.has(Number(n))?word+' '+mapping.get(Number(n)):m);
+        updated=updated.replace(/\b(ON\s+[^:]*?\s+GOTO\s+)([\d\s,]+)\b/gi,
+          (_,prefix,nums)=>prefix+nums.replace(/\d+/g,x=>mapping.has(Number(x))?mapping.get(Number(x)):x));
+        result.set(mapping.get(oldN)??oldN,updated);
+      }
+      this.lines=result;
     }
     storage() { const s=this.hooks.storage; if(!s)throw new BasicError('SAGLABĀŠANA NAV PIEEJAMA');return s; }
     normalizeFile(spec) {return upper(spec.trim().replace(/^DK\d+\s*:\s*/i,'').replace(/^"|"$/g,'').replace(/\.BAS$/i,'')||this.lastSaved).replace(/[^A-Z0-9_\-ĀČĒĢĪĶĻŅŠŪŽ]/g,'_').slice(0,40);}

@@ -107,5 +107,31 @@ async function check(name, program, match, inputs=[]) {
  assert.deepEqual(exits,['exit','exit']);
  assert.equal(output,'');
  console.log('PASS BYE/EXIT host shutdown callback');
+ // LISTNH must omit the program header while preserving line ranges.
+ await b.command('NEW SUPER');
+ await b.command('110 PRINT "ONE"');
+ await b.command('120 GOTO 140');
+ await b.command('130 PRINT "SKIP"');
+ await b.command('140 END');
+ output='';await b.command('LISTNH 110-120');
+ assert.equal(output,'110 PRINT "ONE"\n120 GOTO 140\n');
+ output='';await b.command('LIST');
+ assert.match(output,/SUPER\s+\d\d-[A-Z]{3}-\d\d/);
+ // RESEQ without parameters renumbers lines and their references silently.
+ output='';await b.command('RESEQ');
+ assert.equal(output,'');
+ assert.equal(b.list(),'10 PRINT "ONE"\n20 GOTO 40\n30 PRINT "SKIP"\n40 END');
+ // RESEQ accepts BASIC-11's start, old-line range, and increment.
+ await b.command('NEW RANGE');
+ await b.command('10 PRINT "KEEP"');
+ await b.command('110 GOTO 120');
+ await b.command('120 PRINT "MOVED"');
+ await b.command('130 END');
+ await b.command('RESEQ 20,110-130,20');
+ assert.equal(b.list(),'10 PRINT "KEEP"\n20 GOTO 40\n40 PRINT "MOVED"\n60 END');
+ await b.command('RESEQ 20-60,10');
+ assert.equal(b.list(),'10 PRINT "KEEP"\n20 GOTO 30\n30 PRINT "MOVED"\n40 END');
+ await assert.rejects(b.command('RESEQ 10,30-40,10'),/KONFLIKTS/);
+ console.log('PASS LISTNH and RESEQ');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
