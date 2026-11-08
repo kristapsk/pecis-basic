@@ -313,5 +313,31 @@ async function check(name, program, match, inputs=[]) {
  await assert.rejects(b.command('PRINT SEG$("ABC",3,2)'),/ILLEGAL FUNCTION CALL/);
  await assert.rejects(b.command('PRINT SEG$(123,1,2)'),/TYPE MISMATCH/);
  console.log('PASS BASIC-11 SEG$ and SEG¤ substring function');
+ // Date and time functions use the local machine clock, without parentheses.
+ await b.command('NEW DATETIME');
+ await b.command('10 PRINT DAT¤');
+ await b.command('20 PRINT CLK$');
+ await b.command('30 PRINT DAT$');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^\d{2}-[A-Z]{3}-\d{2}\n\d{2}:\d{2}:\d{2}\n\d{2}-[A-Z]{3}-\d{2}\n/);
+ output='';await b.command('PRINT CLK¤');
+ assert.match(output,/^\d{2}:\d{2}:\d{2}\n$/);
+ // User-defined functions can return real, integer or string results.
+ await check('DEF FN: numeric and multiple arguments',
+   '10 DEF FNA(X,Y)=X*X+Y*Y\n20 PRINT FNA(3,4)', /^25\n/);
+ await check('DEF FN: string and currency suffix',
+   '10 DEF FNB¤(X¤)=X¤+"!"\n20 PRINT FNB$("HELLO")', /^HELLO!\n/);
+ await check('DEF FN: integer result and local parameters',
+   '10 X=100\n20 DEF FNC%(X)=X/2\n30 PRINT FNC%(5)\n40 PRINT X', /^2\n100\n/);
+ await check('DEF FN: zero arguments',
+   '10 A=9\n20 DEF FND=A*A\n30 PRINT FND()', /^81\n/);
+ await b.command('NEW FNTYPES');
+ await b.command('10 DEF FNA(X)=X+1');
+ await b.command('20 PRINT FNA(1,2)');
+ await assert.rejects(b.command('RUNNH'),e=>e instanceof BasicError && e.message==='ILLEGAL FUNCTION CALL' && e.line===20);
+ await b.command('20 PRINT FNA(2)');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^3\n/); // RUN must reset definitions so they can be defined again.
+ console.log('PASS BASIC-11 DAT$, CLK$ and DEF FN');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

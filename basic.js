@@ -118,8 +118,8 @@
           const args = [];
           if (!this.eat(')')) { do { args.push(this.expr(0)); } while (this.eat(',')); this.expect(')'); }
           left = this.runtime.resolveCall(tok.value, args);
-        } else if (tok.value === 'RND') {
-          left = this.runtime.resolveCall('RND', []);
+        } else if (tok.value === 'RND' || tok.value === 'CLK$' || tok.value === 'DAT$') {
+          left = this.runtime.resolveCall(tok.value, []);
         } else left = this.runtime.getVar(tok.value);
       } else throw new BasicError('SYNTAX ERROR');
       while (true) {
@@ -194,10 +194,45 @@
         + '-' + pad(date.getFullYear() % 100) + '   ' + pad(date.getHours())
         + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
     }
-    resetState() { this.vars = new Map(); this.arrays = new Map(); this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; }
+    resetState() { this.vars = new Map(); this.arrays = new Map(); this.userFunctions = new Map(); this.functionDepth = 0; this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; }
     number(x) { const n = Number(x); if (!Number.isFinite(n)) throw new BasicError('TYPE MISMATCH'); return n; }
     truth(x) { return typeof x === 'string' ? x.length > 0 : this.number(x) !== 0; }
     getVar(name) { return this.vars.has(name) ? this.vars.get(name) : name.endsWith('$') ? '' : 0; }
+    defineFunction(spec) {
+      // BASIC-11 function names are FN + one letter, optionally suffixed by % or $.
+      // The currency sign (U+00A4) is the historical spelling of $.
+      const match=spec.match(/^\s*(FN[A-Za-z][$%¤]?)\s*(?:\(([^()]*)\))?\s*=\s*(.+)$/s);
+      if(!match)throw new BasicError('SYNTAX ERROR');
+      const name=upper(match[1]).replace(/¤$/, '$');
+      const params=match[2]===undefined||!match[2].trim()?[]:match[2].split(',').map(x=>upper(x.trim()).replace(/¤$/, '$'));
+      if(params.length>5||params.some(x=>!/^[A-Z][A-Z0-9_]*[$%]?$/.test(x))||new Set(params).size!==params.length)
+        throw new BasicError('SYNTAX ERROR');
+      if(this.userFunctions.has(name))throw new BasicError('FUNCTION ALREADY DEFINED');
+      this.userFunctions.set(name,{params,expression:match[3].trim()});
+    }
+    callUserFunction(name,args) {
+      const fn=this.userFunctions.get(name);
+      if(!fn)throw new BasicError('UNDEFINED FUNCTION');
+      if(fn.params.length!==args.length)throw new BasicError('ILLEGAL FUNCTION CALL');
+      if(this.functionDepth>=32)throw new BasicError('OUT OF TIME');
+      const saved=this.vars;
+      this.vars=new Map(saved);this.functionDepth++;
+      try {
+        for(let i=0;i<args.length;i++){
+          const param=fn.params[i],value=args[i];
+          if(param.endsWith('$')!== (typeof value==='string'))throw new BasicError('TYPE MISMATCH');
+          this.setVar(param,value);
+        }
+        const result=this.evaluate(fn.expression);
+        if(name.endsWith('$')){
+          if(typeof result!=='string')throw new BasicError('TYPE MISMATCH');
+          return result;
+        }
+        if(typeof result!=='number')throw new BasicError('TYPE MISMATCH');
+        const number=this.number(result);
+        return name.endsWith('%')?Math.trunc(number):number;
+      } finally {this.vars=saved;this.functionDepth--;}
+    }
     setVar(name, value) {
       if (name.endsWith('$')) this.vars.set(name, String(value));
       else { const num = this.number(value); this.vars.set(name, name.endsWith('%') ? Math.trunc(num) : num); }
@@ -227,6 +262,7 @@
       const value=fn(); if (!Number.isFinite(value)) throw new BasicError('OVERFLOW'); return value;
     }
     resolveCall(name,args) {
+      if(/^FN[A-Z][$%]?$/.test(name))return this.callUserFunction(name,args);
       const n=i=>this.number(args[i]), s=i=>String(args[i]);
       const funcs={
         'ABS':()=>Math.abs(n(0)), 'INT':()=>Math.floor(n(0)), 'FIX':()=>Math.trunc(n(0)),
@@ -234,6 +270,17 @@
         'COS':()=>Math.cos(n(0)), 'TAN':()=>Math.tan(n(0)), 'ATN':()=>Math.atan(n(0)),
         'LOG':()=>Math.log(n(0)), 'EXP':()=>Math.exp(n(0)),
         'RND':()=>Math.random(), 'LEN':()=>s(0).length,
+        'CLK$':()=>{
+          if(args.length)throw new BasicError('ILLEGAL FUNCTION CALL');
+          const d=new Date(),pad=x=>String(x).padStart(2,'0');
+          return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+        },
+        'DAT$':()=>{
+          if(args.length)throw new BasicError('ILLEGAL FUNCTION CALL');
+          const d=new Date(),pad=x=>String(x).padStart(2,'0');
+          const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+          return pad(d.getDate())+'-'+months[d.getMonth()]+'-'+pad(d.getFullYear()%100);
+        },
         'POS':()=>{
           if(args.length!==3)throw new BasicError('ILLEGAL FUNCTION CALL');
           if(typeof args[0]!=='string'||typeof args[1]!=='string')throw new BasicError('TYPE MISMATCH');
@@ -455,6 +502,7 @@
       const m=src.match(/^([A-Za-z]+\$?|\?)(?=\W|$)\s*(.*)$/s);
       const cmd=m?upper(m[1]):'';let rest=m?m[2]:src;
       if(cmd==='PRINT'||cmd==='?'){this.printStatement(rest);return;}
+      if(cmd==='DEF'){if(ctx.interactive)throw new BasicError('ILLEGAL DIRECT');this.defineFunction(rest);return;}
       if(cmd==='LET'||this.findEquals(src)>=0 && !/^(IF|FOR|DEF|ON|DATA)\b/i.test(src)){
         const assign=cmd==='LET'?rest:src,idx=this.findEquals(assign);if(idx<0)throw new BasicError('SYNTAX ERROR');
         this.assign(assign.slice(0,idx),this.evaluate(assign.slice(idx+1)));return;
