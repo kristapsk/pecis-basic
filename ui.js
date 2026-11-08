@@ -67,6 +67,23 @@ async function command(text, echo=true){
  busy=true;try{await basic.command(text);}catch(err){showError(err);}finally{busy=false;input.focus();}
 }
 form.addEventListener('submit',ev=>{ev.preventDefault();const text=terminalInput(input.value);input.value='';command(text);});
+// A single-line input discards line breaks. Handle multiline clipboard text
+// as separate BASIC commands, preserving the interactive session.
+input.addEventListener('paste',async ev=>{
+ const pasted=ev.clipboardData?.getData('text/plain');
+ if(!pasted || !/[\r\n]/.test(pasted))return;
+ ev.preventDefault();
+ if(busy || inputResolver){toast('PĀRTRAUC PROGRAMMU PIRMS IELĪMĒŠANAS');return;}
+ const start=input.selectionStart??input.value.length;
+ const end=input.selectionEnd??start;
+ const lines=(input.value.slice(0,start)+pasted+input.value.slice(end)).split(/\r\n|\r|\n/);
+ input.value='';
+ for(const line of lines){
+  if(!line.trim())continue;
+  await command(terminalInput(line));
+ }
+ input.focus();
+});
 // A historical keyboard provides capital Latin letters for BASIC entry.
 input.addEventListener('input',()=>{if(charset==='koi7')input.value=terminalInput(input.value);});
 input.addEventListener('keydown',ev=>{
