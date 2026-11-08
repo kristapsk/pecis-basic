@@ -125,7 +125,7 @@
 
   class Interpreter {
     constructor(hooks = {}) {
-      this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}), linePrinter: hooks.linePrinter || null };
+      this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}), linePrinter: hooks.linePrinter || null, exit: hooks.exit || (()=>{}) };
       this.lines = new Map(); this.resetState(); this.running = false; this.cancel = false;
       this.lastSaved = 'PROGRAMMA'; this.stepLimit = 1000000;
       this.programName = 'PROGRAMMA'; this.programCreated = new Date().toISOString();
@@ -268,7 +268,7 @@
       if(word==='SAVE'){this.save(rest);return;}
       if(word==='LOAD'||word==='OLD'){this.load(rest);return;}
       if(word==='FILES'||word==='DIR'){this.files();return;}
-      if(word==='BYE'||word==='EXIT'){this.print('UZ REDZĒŠANOS!\n');return;}
+      if(word==='BYE'||word==='EXIT'){this.hooks.exit();return;}
       // Direct BASIC statements (including PRINT with no following whitespace, assignments).
       const context={pc:0,steps:0,interactive:true,compiled:{instructions:[],locations:new Map(),data:[]},jump:null,stopped:false};
       for(const stmt of splitStatements(source))await this.execute(stmt,context);

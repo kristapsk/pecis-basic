@@ -98,5 +98,14 @@ async function check(name, program, match, inputs=[]) {
  assert.equal(storage.getItem('pecis.basic.file.LP1'),null);
  b.hooks.linePrinter=null;
  console.log('PASS SAVE LP:/LP1: printer dispatch');
+ // BYE and EXIT delegate shutdown to the embedding environment.
+ const exits=[];
+ b.hooks.exit=()=>exits.push('exit');
+ output='';
+ await b.command('BYE');
+ await b.command('EXIT');
+ assert.deepEqual(exits,['exit','exit']);
+ assert.equal(output,'');
+ console.log('PASS BYE/EXIT host shutdown callback');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
