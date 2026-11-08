@@ -300,5 +300,18 @@ async function check(name, program, match, inputs=[]) {
  await assert.rejects(b.command('PRINT POS(123,"2",1)'),/TYPE MISMATCH/);
  await assert.rejects(b.command('PRINT POS("ABC","A",0)'),/ILLEGAL FUNCTION CALL/);
  console.log('PASS BASIC-11 POS function');
+ // SEG$ and historical SEG¤ use inclusive 1-based start/end positions.
+ await b.command('NEW SEGMENTS');
+ await b.command('10 A¤="SAPRAHTINJA"');
+ await b.command('20 PRINT SEG¤(A¤,1,3)+SEG¤(A¤,9,11)');
+ await b.command('30 PRINT SEG$(A$,4,8)');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^SAPNJA\nRAHTI\n/);
+ output='';await b.command('PRINT SEG$("ABC",2,2)');
+ assert.equal(output,'B\n');
+ await assert.rejects(b.command('PRINT SEG$("ABC",0,2)'),/ILLEGAL FUNCTION CALL/);
+ await assert.rejects(b.command('PRINT SEG$("ABC",3,2)'),/ILLEGAL FUNCTION CALL/);
+ await assert.rejects(b.command('PRINT SEG$(123,1,2)'),/TYPE MISMATCH/);
+ console.log('PASS BASIC-11 SEG$ and SEG¤ substring function');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

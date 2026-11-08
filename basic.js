@@ -249,6 +249,16 @@
         'LEFT$':()=>s(0).slice(0,Math.max(0,Math.trunc(n(1)))),
         'RIGHT$':()=>s(0).slice(-Math.max(0,Math.trunc(n(1)))) || '',
         'MID$':()=>s(0).slice(Math.max(0,Math.trunc(n(1))-1), args.length===3?Math.max(0,Math.trunc(n(1))-1)+Math.max(0,Math.trunc(n(2))):undefined),
+        // BASIC-11 SEG$(text, first, last): inclusive, 1-based positions.
+        // The tokenizer already maps the historical SEG¤ spelling to SEG$.
+        'SEG$':()=>{
+          if(args.length!==3)throw new BasicError('ILLEGAL FUNCTION CALL');
+          if(typeof args[0]!=='string')throw new BasicError('TYPE MISMATCH');
+          const first=n(1),last=n(2);
+          if(!Number.isInteger(first)||!Number.isInteger(last)||first<1||last<first)
+            throw new BasicError('ILLEGAL FUNCTION CALL');
+          return args[0].slice(first-1,last);
+        },
         'TAB':()=>({ spacing:'TAB', value:n(0) }), 'SPC':()=>({ spacing:'SPC', value:n(0) })
       };
       if (Object.prototype.hasOwnProperty.call(funcs,name)) {
