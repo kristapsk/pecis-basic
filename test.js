@@ -500,5 +500,18 @@ async function check(name, program, match, inputs=[]) {
  output='';await b.command('RUNNH');
  assert.equal(storage.getItem('pecis.basic.vfs.DK1:PRINTCOLON.DAT'),'COLON\nSEMICOLON\n');
  console.log('PASS BASIC-11 PRINT # comma and empty output');
+ // Channel zero is the terminal and does not require OPEN.
+ await b.command('NEW PRINTZERO');
+ await b.command('10 F=0');
+ await b.command('20 N=3');
+ await b.command('30 S¤="*"');
+ await b.command('40 PRINT #F,TAB(5); \\ FOR I=1 TO N \\ PRINT #F,S¤; \\ NEXT I');
+ await b.command('50 PRINT #F');
+ await b.command('60 PRINT #F,S¤;TAB(8);S¤');
+ await b.command('70 PRINT #F');
+ output='';await b.command('RUNNH');
+ assert.match(output,/    \*\*\*\n\*      \*\n\n/);
+ await assert.rejects(b.command('PRINT #3,"NOT OPEN"'),/FILE NOT OPEN/);
+ console.log('PASS BASIC-11 terminal output channel zero');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

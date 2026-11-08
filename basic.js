@@ -628,6 +628,12 @@
       // and PRINT #F with no arguments (a blank line / flush).
       const match=spec.match(/^#\s*([^;:,\s]+)\s*(?:([;:,])\s*([\s\S]*))?$/);
       if(!match)throw new BasicError('SYNTAX ERROR');
+      // BASIC-11 channel 0 is the terminal and needs no OPEN.
+      // Other channels still require OPEN and a valid file number.
+      if(this.number(this.evaluate(match[1]))===0){
+        this.printStatement(match[3]??'');
+        return;
+      }
       const channel=this.fileChannel(match[1],'OUTPUT');
       const output=this.outputBuffer,print=this.hooks.print;
       this.outputBuffer=channel.pending;
