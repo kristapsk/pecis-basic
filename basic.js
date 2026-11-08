@@ -145,6 +145,40 @@
   }
   function unquote(str) { const s = str.trim(); return s.startsWith('"') && s.endsWith('"') ? s.slice(1,-1).replace(/""/g,'"') : s; }
 
+  // A reply may contain several comma-delimited INPUT fields. Quoted strings
+  // may contain commas and escaped double quotes ("").
+  function parseInputValues(reply) {
+    const source = String(reply), values = [];
+    let i = 0;
+    while (true) {
+      while (i < source.length && /\s/.test(source[i])) i++;
+      if (source[i] === '"') {
+        i++;
+        let value = '', closed = false;
+        while (i < source.length) {
+          if (source[i] === '"') {
+            if (source[i + 1] === '"') { value += '"'; i += 2; continue; }
+            i++; closed = true; break;
+          }
+          value += source[i++];
+        }
+        if (!closed) throw new BasicError('REDO FROM START');
+        while (i < source.length && /\s/.test(source[i])) i++;
+        if (i < source.length && source[i] !== ',') throw new BasicError('REDO FROM START');
+        values.push(value);
+      } else {
+        const start = i;
+        while (i < source.length && source[i] !== ',') {
+          if (source[i] === '"') throw new BasicError('REDO FROM START');
+          i++;
+        }
+        values.push(source.slice(start, i).trim());
+      }
+      if (i >= source.length) return values;
+      i++; // Comma separates values only outside a quoted string.
+    }
+  }
+
   class Interpreter {
     constructor(hooks = {}) {
       this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}), linePrinter: hooks.linePrinter || null, exit: hooks.exit || (()=>{}) };
@@ -473,10 +507,19 @@
         // PRINT ending in ; or , keeps output pending. Show it before INPUT.
         // Do not add a newline: BASIC prints the INPUT prompt on the same line.
         if(this.outputBuffer){this.print(this.outputBuffer);this.outputBuffer='';}
-        const reply=await this.hooks.input(prompt);
-        if(this.cancel)throw new BasicError('BREAK');
-        const values=splitOutside(reply,',');if(values.length!==targets.length)throw new BasicError('REDO FROM START');
-        for(let i=0;i<targets.length;i++){const t=this.parseTarget(targets[i]);const val=t.name.endsWith('$')?unquote(values[i]):Number(values[i].trim());if(!t.name.endsWith('$')&&!Number.isFinite(val))throw new BasicError('TYPE MISMATCH');this.assign(targets[i],val);}
+        let assigned = 0;
+        while (assigned < targets.length) {
+          const reply = await this.hooks.input(prompt);
+          if(this.cancel)throw new BasicError('BREAK');
+          const values = parseInputValues(reply);
+          if (values.length > targets.length - assigned) throw new BasicError('REDO FROM START');
+          for (const value of values) {
+            const target = targets[assigned++], t = this.parseTarget(target);
+            const val = t.name.endsWith('$') ? value : Number(value);
+            if (!t.name.endsWith('$') && !Number.isFinite(val)) throw new BasicError('TYPE MISMATCH');
+            this.assign(target, val);
+          }
+        }
         return;
       }
       if(cmd==='END'){ctx.stopped=true;return;}

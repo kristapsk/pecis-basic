@@ -261,6 +261,30 @@ async function check(name, program, match, inputs=[]) {
   await check('guillemets: literal signs inside ASCII quotes',
     '10 PRINT "«not a delimiter»"', /«not a delimiter»/);
   console.log('PASS BASIC-11 guillemet string literals');
+ // INPUT accepts one or several comma-separated fields per reply, and prompts
+ // again for any remaining variables.
+ await check('INPUT: separate replies',
+   '10 INPUT S1¤,S2¤\n20 PRINT S1¤;"/";S2¤', /ANNA\/ZUZANNA/,
+   ['ANNA','ZUZANNA']);
+ await check('INPUT: comma-separated reply',
+   '10 INPUT S1¤,S2¤\n20 PRINT S1¤;"/";S2¤', /ANNA\/ZUZANNA/,
+   ['ANNA,ZUZANNA']);
+ await check('INPUT: quoted comma and escaped quote',
+   '10 INPUT S1¤,S2¤\n20 PRINT S1¤;"/";S2¤', /RIGA, LATVIJA\/ZUZANNA/,
+   ['"RIGA, LATVIJA",ZUZANNA']);
+ await check('INPUT: three variables across replies',
+   '10 INPUT A$,B$,C$\n20 PRINT A$;"/";B$;"/";C$', /FIRST\/SECOND\/THIRD/,
+   ['FIRST,SECOND','THIRD']);
+ await check('INPUT: doubled quotes in a field',
+   '10 INPUT A$\n20 PRINT A$', /SAYS "HELLO"/,
+   ['"SAYS ""HELLO"""']);
+ await b.command('NEW INPUTBAD');
+ await b.command('10 INPUT A$,B$');
+ answers=['"UNTERMINATED'];
+ await assert.rejects(b.command('RUNNH'),e=>e instanceof BasicError&&e.message==='REDO FROM START'&&e.line===10);
+ answers=['A,B,C'];
+ await assert.rejects(b.command('RUNNH'),e=>e instanceof BasicError&&e.message==='REDO FROM START'&&e.line===10);
+ console.log('PASS BASIC-11 INPUT comma and multi-reply parsing');
  console.log('PASS BASIC-11 currency-sign string variable suffix');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
