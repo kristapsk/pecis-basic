@@ -14,13 +14,13 @@ async function check(name, program, match, inputs=[]) {
  await check('nested loops','10 FOR I=1 TO 2\n20 FOR J=1 TO 2\n30 PRINT I*10+J;",";\n40 NEXT J\n50 NEXT I\n60 PRINT',/11,12,21,22,/);
  await check('skip FOR','10 FOR I=5 TO 1\n20 PRINT "WRONG"\n30 NEXT I\n40 PRINT "RIGHT"',/RIGHT/);
  assert(!output.includes('WRONG'));
- await check('IF THEN ELSE','10 A=3\n20 IF A=3 THEN PRINT "YES": PRINT "OK" ELSE PRINT "NO"',/YES\nOK/);
+ await check('IF THEN ELSE','10 A=3\n20 IF A=3 THEN PRINT "YES"\\ PRINT "OK" ELSE PRINT "NO"',/YES\nOK/);
  await check('GOTO','10 A=1\n20 GOTO 40\n30 PRINT "BAD"\n40 PRINT A',/1/);assert(!output.includes('BAD'));
  await check('GOSUB','10 GOSUB 50\n20 PRINT "AFTER"\n30 END\n50 PRINT "SUB"\n60 RETURN',/SUB\nAFTER/);
  await check('DIM DATA READ','10 DIM A(2)\n20 DATA 4,5\n30 READ A(1),A(2)\n40 PRINT A(1)+A(2)',/9/);
  await check('INPUT','10 INPUT "VECUMS";N\n20 PRINT N+1',/43/,['42']);
  await check('string funcs','10 A$="MAIJA"\n20 PRINT LEFT$(A$,2);RIGHT$(A$,2)',/MAJA/);
- await check('ON GOTO','10 N=2\n20 ON N GOTO 40,50\n30 PRINT "BAD"\n40 PRINT "ONE":END\n50 PRINT "TWO":END',/TWO/);assert(!output.includes('BAD'));
+ await check('ON GOTO','10 N=2\n20 ON N GOTO 40,50\n30 PRINT "BAD"\n40 PRINT "ONE"\\END\n50 PRINT "TWO"\\END',/TWO/);assert(!output.includes('BAD'));
  await check('RESTORE','10 DATA 1,2\n20 READ A\n30 RESTORE\n40 READ B\n50 PRINT A+B',/2/);
  await b.command('SAVE DK1:TEST'); await b.command('NEW');await b.command('LOAD DK1:TEST');assert.match(b.list(),/10 DATA/);console.log('PASS local disk SAVE/LOAD');
  await b.command('RENUM 100,5');assert.match(b.list(),/^100 DATA/m);console.log('PASS RENUM');
@@ -196,13 +196,13 @@ async function check(name, program, match, inputs=[]) {
  console.log('PASS bare RND and parenthesized RND');
  // ON accepts the BASIC-11 GO TO spelling, including computed branches.
  await check('ON GO TO branch 2',
-   '10 R=2\n20 ON R GO TO 40,60,80\n30 PRINT "BAD":END\n40 PRINT "FIRST":END\n60 PRINT "SECOND":END\n80 PRINT "THIRD":END', /SECOND/);
+   '10 R=2\n20 ON R GO TO 40,60,80\n30 PRINT "BAD"\\END\n40 PRINT "FIRST"\\END\n60 PRINT "SECOND"\\END\n80 PRINT "THIRD"\\END', /SECOND/);
  assert.doesNotMatch(output,/FIRST|THIRD|BAD/);
  await check('ON GO TO branch 1',
-   '10 R=1\n20 ON R GO TO 40,60\n30 PRINT "BAD":END\n40 PRINT "FIRST":END\n60 PRINT "SECOND":END', /FIRST/);
+   '10 R=1\n20 ON R GO TO 40,60\n30 PRINT "BAD"\\END\n40 PRINT "FIRST"\\END\n60 PRINT "SECOND"\\END', /FIRST/);
  assert.doesNotMatch(output,/SECOND|BAD/);
  await check('ON GOTO remains supported',
-   '10 R=2\n20 ON R GOTO 40,60\n30 END\n40 PRINT "BAD":END\n60 PRINT "OK":END', /OK/);
+   '10 R=2\n20 ON R GOTO 40,60\n30 END\n40 PRINT "BAD"\\END\n60 PRINT "OK"\\END', /OK/);
  // Both renumbering commands must fix ON GO TO and ordinary GO TO references.
  await b.command('NEW TARGETS');
  await b.command('10 ON R GO TO 50,80');
@@ -554,5 +554,16 @@ async function check(name, program, match, inputs=[]) {
  assert.equal(b.getVar('X'),7);
  assert.deepEqual(require('./basic.js').splitStatements('REM FIRST \\ X=2'),['REM FIRST','X=2']);
  console.log('PASS BASIC-11 REM with backslash-separated statements');
+ // A colon is ordinary BASIC-11 text, including in REM statements.
+ await b.command('NEW REMCOLON');
+ await b.command('10 REM PROGRAMMA DARBAM AR FAILU: SKOLENU SARAKSTS');
+ await b.command('20 X=1 \\ REM PIEZIME: TEKSTS \\ X=X+2');
+ await b.command('30 PRINT X');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^3\n/);
+ assert.deepEqual(require('./basic.js').splitStatements('REM NOTE: MORE TEXT \\ X=4'),['REM NOTE: MORE TEXT','X=4']);
+ assert.deepEqual(require('./basic.js').splitStatements('PRINT #F: "HELLO" \\ PRINT "DONE"'),['PRINT #F: "HELLO"','PRINT "DONE"']);
+ assert.deepEqual(require('./basic.js').splitStatements('PRINT "A:B" \\ PRINT "C"'),['PRINT "A:B"','PRINT "C"']);
+ console.log('PASS BASIC-11 backslash-only separator and REM colons');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

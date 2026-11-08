@@ -57,13 +57,13 @@
         else normalized += ch;
       } else if (ch === '"') { quote = '"'; normalized += ch; }
       else if (ch === '«') { quote = '»'; normalized += '"'; }
-      // In PRINT #4: and INPUT #4: the colon belongs to the file command.
-      else if (ch === ':' && /(?:^|:)\s*(?:PRINT|INPUT)\s*#\s*(?:[A-Z_][A-Z0-9_]*|\d+)\s*$/i.test(normalized)) normalized += ';';
-      else normalized += ch === '\\' ? ':' : ch;
+      // Only backslash separates BASIC-11 statements. Colons are literal,
+      // including in REM text and in PRINT #F: or INPUT #F: syntax.
+      else normalized += ch;
     }
     // A numeric THEN target is a jump, so statements after \ run only
     // when the condition is false. THEN PRINT ... \ PRINT ... stays one branch.
-    const tokens = splitOutside(normalized, ':'); const results = [];
+    const tokens = splitOutside(normalized, '\\'); const results = [];
     for (let i = 0; i < tokens.length; i++) {
       const item = tokens[i].trim();
       if (/^IF\b.*\bTHEN\s+\d+$/i.test(item)) {
@@ -71,7 +71,7 @@
       }
       // REM ends at the next backslash, not at the end of the source line.
       if (/^(?:IF\s|')/i.test(item)) {
-        results.push(tokens.slice(i).join(':').trim()); break;
+        results.push(tokens.slice(i).join('\\').trim()); break;
       }
       if (item) results.push(item);
     }
