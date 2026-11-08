@@ -234,6 +234,15 @@
         'COS':()=>Math.cos(n(0)), 'TAN':()=>Math.tan(n(0)), 'ATN':()=>Math.atan(n(0)),
         'LOG':()=>Math.log(n(0)), 'EXP':()=>Math.exp(n(0)),
         'RND':()=>Math.random(), 'LEN':()=>s(0).length,
+        'POS':()=>{
+          if(args.length!==3)throw new BasicError('ILLEGAL FUNCTION CALL');
+          if(typeof args[0]!=='string'||typeof args[1]!=='string')throw new BasicError('TYPE MISMATCH');
+          const start=this.number(args[2]);
+          if(!Number.isInteger(start)||start<1)throw new BasicError('ILLEGAL FUNCTION CALL');
+          if(!args[1].length)return 0;
+          const index=args[0].indexOf(args[1],start-1);
+          return index<0?0:index+1;
+        },
         'ASC':()=>s(0).length?s(0).charCodeAt(0):0,
         'CHR$':()=>String.fromCharCode(n(0)), 'STR$':()=>formatNum(n(0)),
         'VAL':()=>{ const m=s(0).match(/^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?/); return m?Number(m[0]):0; },

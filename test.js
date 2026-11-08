@@ -286,5 +286,19 @@ async function check(name, program, match, inputs=[]) {
  await assert.rejects(b.command('RUNNH'),e=>e instanceof BasicError&&e.message==='REDO FROM START'&&e.line===10);
  console.log('PASS BASIC-11 INPUT comma and multi-reply parsing');
  console.log('PASS BASIC-11 currency-sign string variable suffix');
+ // BASIC-11 POS(string, substring, start) uses 1-based positions.
+ await b.command('NEW POSITION');
+ await b.command('10 A¤="BEISIKAHNS"');
+ await b.command('20 PRINT POS(A¤,"EI",2)');
+ await b.command('30 PRINT POS(A$,"EI",3)');
+ await b.command('40 PRINT POS("BANANA","ANA",3)');
+ await b.command('50 PRINT POS(A$,"XYZ",1)');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^2\n0\n4\n0\n/);
+ output='';await b.command('PRINT POS("ABC","BC",2)');
+ assert.equal(output,'2\n');
+ await assert.rejects(b.command('PRINT POS(123,"2",1)'),/TYPE MISMATCH/);
+ await assert.rejects(b.command('PRINT POS("ABC","A",0)'),/ILLEGAL FUNCTION CALL/);
+ console.log('PASS BASIC-11 POS function');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
