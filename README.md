@@ -4,6 +4,10 @@ Neatkarīgs, izglītojošs retro BASIC interpretators, kuru iedvesmojusi B. Mart
 
 Grāmata: https://laacz.lv/f/txt/ka-pecis-beiskans-maiju-sapratinu-programmet-macija/web/
 
+Online demo: https://kristapsk.github.io/pecis-basic/
+
+<img width="1191" height="759" alt="image" src="https://github.com/user-attachments/assets/32fe411f-53fc-4c74-a397-de7afad9b596" />
+
 > **Savietojamības statuss:** pašlaik darbojošs klasiskā BASIC apakškopas interpretators ar lieldatora termināļa saskarni. Tas nav konkrēta vēsturiska datora CPU, ROM vai faktiskā BASIC dialekta precīzs emulators. Pilnu grāmatas skenējumu šajā izstrādes vidē neizdevās lejupielādēt un sistemātiski salīdzināt. Tāpēc komandu kopu, ekrāna formātu, kļūdu tekstus un citus sīkumus vēl nepieciešams salīdzināt ar oriģinālu.
 
 ## Palaišana
