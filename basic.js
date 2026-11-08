@@ -459,6 +459,9 @@
         else {const comma=splitOutside(rest,',');if(comma.length>1&&/^\s*"/.test(comma[0])){prompt=String(this.evaluate(comma.shift()))+'? ';rest=comma.join(',');}}
         const targets=splitOutside(rest,',');
         if(targets.some(t=>!t.trim()))throw new BasicError('SYNTAX ERROR');
+        // PRINT ending in ; or , keeps output pending. Show it before INPUT.
+        // Do not add a newline: BASIC prints the INPUT prompt on the same line.
+        if(this.outputBuffer){this.print(this.outputBuffer);this.outputBuffer='';}
         const reply=await this.hooks.input(prompt);
         if(this.cancel)throw new BasicError('BREAK');
         const values=splitOutside(reply,',');if(values.length!==targets.length)throw new BasicError('REDO FROM START');

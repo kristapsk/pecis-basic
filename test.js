@@ -166,5 +166,19 @@ async function check(name, program, match, inputs=[]) {
  await check('backslash: IF branch',
    '10 A=1\n20 IF A=1 THEN PRINT "YES" \\ PRINT "OK"\n30 END', /YES\nOK/);
  console.log('PASS BASIC-11 backslash statement separators');
+ // Pending PRINT output must be visible before INPUT requests a value.
+ await b.command('NEW INPUTORDER');
+ await b.command('10 PRINT "IEVADIET A"; \\ INPUT A');
+ await b.command('20 PRINT "IEVADIET B"; \\ INPUT B');
+ await b.command('30 PRINT A+B');
+ const previousInput=b.hooks.input, seen=[];
+ answers=['12','20']; output='';
+ b.hooks.input=async question=>{seen.push({question,output});return answers.shift();};
+ try { await b.command('RUNNH'); }
+ finally { b.hooks.input=previousInput; }
+ assert.deepEqual(seen.map(x=>x.output),['IEVADIET A','IEVADIET AIEVADIET B']);
+ assert.deepEqual(seen.map(x=>x.question),['? ','? ']);
+ assert.match(output,/32\n/);
+ console.log('PASS pending PRINT output before INPUT');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
