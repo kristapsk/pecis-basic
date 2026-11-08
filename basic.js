@@ -260,7 +260,7 @@
       const m=source.match(/^([A-Za-z]+\$?|\?)(?:\s+(.*))?$/); const word=m?upper(m[1]):''; const rest=m?(m[2]||''):'';
       if(word==='RUN'||word==='RUNNH'){await this.run(rest);return;}
       if(word==='LIST'||word==='LLIST'){const [from,to]=this.parseLineSpec(rest);this.print('\n'+this.listHeader()+'\n\n'+(this.list(from,to)||'')+'\n');return;}
-      if(word==='NEW'){this.lines.clear();this.resetState();this.programName='PROGRAMMA';this.programCreated=new Date().toISOString();this.print('JAUNA PROGRAMMA\n');return;}
+      if(word==='NEW'){this.lines.clear();this.resetState();this.programName=upper(rest.trim()||'PROGRAMMA');this.programCreated=new Date().toISOString();return;}
       if(word==='CLEAR'){this.resetState();return;}
       if(word==='CLS'||word==='HOME'){this.hooks.clear();return;}
       if(word==='HELP'){this.print('RUN  LIST  NEW  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}

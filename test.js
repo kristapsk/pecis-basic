@@ -50,5 +50,19 @@ async function check(name, program, match, inputs=[]) {
  assert.equal(b.programCreated,'1986-11-21T14:35:20.000Z');
  assert.equal(b.list(),'10 A=12');
  console.log('PASS LIST header and persisted creation time');
+ // NEW with a name must update the LIST header without printing a message.
+ output='';
+ await b.command('NEW SUPER');
+ assert.equal(output,'');
+ assert.equal(b.programName,'SUPER');
+ await b.command('10A=12');
+ await b.command('20B=20');
+ output='';
+ await b.command('LIST');
+ assert.match(output,/^\nSUPER\s+\d\d-[A-Z]{3}-\d\d\s+\d\d:\d\d:\d\d\n\n10 A=12\n20 B=20\n$/);
+ output='';
+ await b.command('NEW');
+ assert.equal(output,'');
+ assert.equal(b.programName,'PROGRAMMA');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
