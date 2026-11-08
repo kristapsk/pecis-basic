@@ -109,6 +109,8 @@
           const args = [];
           if (!this.eat(')')) { do { args.push(this.expr(0)); } while (this.eat(',')); this.expect(')'); }
           left = this.runtime.resolveCall(tok.value, args);
+        } else if (tok.value === 'RND') {
+          left = this.runtime.resolveCall('RND', []);
         } else left = this.runtime.getVar(tok.value);
       } else throw new BasicError('SYNTAX ERROR');
       while (true) {

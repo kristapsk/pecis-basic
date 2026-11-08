@@ -180,5 +180,19 @@ async function check(name, program, match, inputs=[]) {
  assert.deepEqual(seen.map(x=>x.question),['? ','? ']);
  assert.match(output,/32\n/);
  console.log('PASS pending PRINT output before INPUT');
+ // RND is a zero-argument function even without parentheses.
+ await b.command('NEW RANDOM');
+ await b.command('10 A=RND');
+ await b.command('20 B=RND()');
+ await b.command('30 C=RND(1)');
+ await b.command('40 PRINT A,B,C');
+ output='';await b.command('RUNNH');
+ for(const name of ['A','B','C']) {
+   assert(b.getVar(name)>=0 && b.getVar(name)<1, name+' must be random');
+ }
+ const first=b.getVar('A');
+ output='';await b.command('RUNNH');
+ assert.notEqual(b.getVar('A'),first);
+ console.log('PASS bare RND and parenthesized RND');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
