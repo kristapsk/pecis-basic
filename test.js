@@ -64,5 +64,20 @@ async function check(name, program, match, inputs=[]) {
  await b.command('NEW');
  assert.equal(output,'');
  assert.equal(b.programName,'PROGRAMMA');
+ // RUN shows the same program header as LIST; RUNNH does not.
+ await b.command('NEW SUPER');
+ await b.command('10 PRINT "RESULT=32"');
+ b.programCreated='1986-11-21T14:46:30.000Z';
+ output='';
+ await b.command('RUN');
+ assert.match(output,/^\nSUPER\s+\d\d-[A-Z]{3}-86\s+\d\d:\d\d:\d\d\n\nRESULT=32\n/);
+ assert.match(output,/READY\n$/);
+ output='';
+ await b.command('RUNNH');
+ assert.doesNotMatch(output,/SUPER|21-NOV-86/);
+ assert.match(output,/^RESULT=32\n\nREADY\n$/);
+ output='';
+ await b.command('RUN 10');
+ assert.match(output,/^\nSUPER\s+/);
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

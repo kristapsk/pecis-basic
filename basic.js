@@ -258,7 +258,7 @@
         if(!line[2]||!line[2].trim())this.lines.delete(n);else this.lines.set(n,line[2].trim());return;
       }
       const m=source.match(/^([A-Za-z]+\$?|\?)(?:\s+(.*))?$/); const word=m?upper(m[1]):''; const rest=m?(m[2]||''):'';
-      if(word==='RUN'||word==='RUNNH'){await this.run(rest);return;}
+      if(word==='RUN'||word==='RUNNH'){await this.run(rest,word==='RUN');return;}
       if(word==='LIST'||word==='LLIST'){const [from,to]=this.parseLineSpec(rest);this.print('\n'+this.listHeader()+'\n\n'+(this.list(from,to)||'')+'\n');return;}
       if(word==='NEW'){this.lines.clear();this.resetState();this.programName=upper(rest.trim()||'PROGRAMMA');this.programCreated=new Date().toISOString();return;}
       if(word==='CLEAR'){this.resetState();return;}
@@ -402,7 +402,7 @@
       throw new BasicError('NEZINĀMA KOMANDA: '+(cmd||src.split(/\s+/)[0]));
     }
     findMatchingNext(instructions,pc){let depth=0;for(let i=pc+1;i<instructions.length;i++){if(/^FOR\s/i.test(instructions[i].statement))depth++;if(/^NEXT(?:\s|$)/i.test(instructions[i].statement)){if(depth===0)return i;depth--;}}throw new BasicError('FOR BEZ NEXT');}
-    async run(rest='') {
+    async run(rest='',showHeader=false) {
       if(this.running)throw new BasicError('PROGRAMMA JAU TIEK IZPILDĪTA');
       const compiled=this.getCompiled();this.resetState();this.cancel=false;
       const ctx={pc:0,jump:null,stopped:false,interactive:false,compiled,loops:[],callStack:[],dataIndex:0};
@@ -413,6 +413,7 @@
       let steps=0,currentLine=null;
       this.running=true;this.hooks.status('RUNNING');
       try {
+        if(showHeader)this.print('\n'+this.listHeader()+'\n\n');
         while(ctx.pc<compiled.instructions.length&&!ctx.stopped) {
           if(this.cancel)throw new BasicError('PĀRTRAUKTS');
           if(++steps>this.stepLimit)throw new BasicError('PĀRSNIEGTS IZPILDES SOĻU LIMITS');
