@@ -25,5 +25,10 @@ async function check(name, program, match, inputs=[]) {
  await b.command('SAVE DK1:TEST'); await b.command('NEW');await b.command('LOAD DK1:TEST');assert.match(b.list(),/10 DATA/);console.log('PASS local disk SAVE/LOAD');
  await b.command('RENUM 100,5');assert.match(b.list(),/^100 DATA/m);console.log('PASS RENUM');
  await b.command('PRINT 2^3^2');assert.match(output,/512/);console.log('PASS arithmetic');
+ await check('six digits: large exponent', '10 A=12\n20 PRINT A^A', /8\.91610E\+12/);
+ await check('six digits: ordinary integer', '10 PRINT 12^2', /144\n/);
+ await check('six digits: fraction', '10 PRINT 1/3', /0\.333333\n/);
+ await check('six digits: large threshold', '10 PRINT 1000000', /1\.00000E\+6/);
+ await check('six digits: STR$', '10 PRINT STR$(12^12)', /8\.91610E\+12/);
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

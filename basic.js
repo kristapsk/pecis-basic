@@ -111,8 +111,15 @@
   }
   function formatNum(n) {
     if (!Number.isFinite(n)) throw new BasicError('SKAITĻOŠANAS KĻŪDA');
-    if (Object.is(n, -0)) n = 0;
-    return String(Number(n.toPrecision(11)));
+    if (Object.is(n, -0) || n === 0) return '0';
+    // The book describes six significant digits in printed numeric results.
+    // Keep ordinary values in decimal form; use E notation outside this range.
+    const rounded = Number(n.toPrecision(6));
+    const exponent = Math.floor(Math.log10(Math.abs(rounded)));
+    if (exponent >= 6 || exponent < -4) {
+      return rounded.toExponential(5).replace('e', 'E');
+    }
+    return String(Number(rounded.toFixed(Math.max(0, 5 - exponent))));
   }
   function unquote(str) { const s = str.trim(); return s.startsWith('"') && s.endsWith('"') ? s.slice(1,-1).replace(/""/g,'"') : s; }
 
