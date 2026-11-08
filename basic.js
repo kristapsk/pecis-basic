@@ -81,8 +81,8 @@
       }
       const number = rest.match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?/);
       if (number) { out.push({ type: 'number', value: Number(number[0]) }); i += number[0].length; continue; }
-      const id = rest.match(/^[A-Za-z_][A-Za-z0-9_]*[$%]?/);
-      if (id) { out.push({ type: 'id', value: upper(id[0]) }); i += id[0].length; continue; }
+      const id = rest.match(/^[A-Za-z_][A-Za-z0-9_]*[$%¤]?/);
+      if (id) { out.push({ type: 'id', value: upper(id[0]).replace(/¤$/, '$') }); i += id[0].length; continue; }
       const op = rest.match(/^(<=|>=|<>|!=|==|[+\-*/^=<>(),;])/);
       if (op) { out.push({ type: 'op', value: op[0] }); i += op[0].length; continue; }
       throw new BasicError('SYNTAX ERROR');
@@ -234,9 +234,9 @@
       if(parts[parts.length-1].value || (parts.length===1 && !parts[0].sep)) { this.print(this.outputBuffer+'\n'); this.outputBuffer=''; }
     }
     parseTarget(text) {
-      const match=text.trim().match(/^([A-Za-z_][A-Za-z0-9_]*[$%]?)\s*(?:\((.*)\))?$/i);
+      const match=text.trim().match(/^([A-Za-z_][A-Za-z0-9_]*[$%¤]?)\s*(?:\((.*)\))?$/i);
       if(!match) throw new BasicError('SYNTAX ERROR');
-      return { name:upper(match[1]), indices:match[2]===undefined?null:splitOutside(match[2],',').map(x=>this.evaluate(x)) };
+      return { name:upper(match[1]).replace(/¤$/, '$'), indices:match[2]===undefined?null:splitOutside(match[2],',').map(x=>this.evaluate(x)) };
     }
     assign(target,value){const t=this.parseTarget(target);if(t.indices)this.setArray(t.name,t.indices,value);else this.setVar(t.name,value);}
     findEquals(text) { let quote=false,depth=0;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"')quote=!quote;if(quote)continue;if(c==='(')depth++;if(c===')')depth--;if(c==='='&&depth===0)return i;}return -1;}
@@ -432,8 +432,8 @@
       }
       if(cmd==='DIM'){
         for(const spec of splitOutside(rest,',')){
-          const match=spec.trim().match(/^([A-Za-z_][A-Za-z0-9_]*[$%]?)\s*\((.*)\)$/);
-          if(!match)throw new BasicError('SYNTAX ERROR');const name=upper(match[1]);
+          const match=spec.trim().match(/^([A-Za-z_][A-Za-z0-9_]*[$%¤]?)\s*\((.*)\)$/);
+          if(!match)throw new BasicError('SYNTAX ERROR');const name=upper(match[1]).replace(/¤$/, '$');
           if(this.arrays.has(name))throw new BasicError('REDIMENSIONED ARRAY');
           const dims=splitOutside(match[2],',').map(v=>Math.trunc(this.number(this.evaluate(v))));
           if(dims.some(n=>n<0||n>50000)||dims.length>4)throw new BasicError('BAD SUBSCRIPT');

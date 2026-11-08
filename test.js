@@ -227,5 +227,27 @@ async function check(name, program, match, inputs=[]) {
   await check('REM with normal space still works',
     '10 REM COMMENT\n20 PRINT "STILL OK"', /STILL OK/);
   console.log('PASS BASIC-11 REM without whitespace');
+ // BASIC-11: ¤ and $ are equivalent string variable suffixes.
+ await b.command('NEW CURRENCY');
+ await b.command('10 A¤="A"');
+ await b.command('20 PRINT A¤;A$');
+ await b.command('30 A$="B"');
+ await b.command('40 PRINT A¤');
+ output='';await b.command('RUNNH');
+ assert.match(output,/AA\nB\n/);
+ assert.equal(b.getVar('A$'),'B');
+ assert.match(b.list(),/10 A¤="A"/);
+ await b.command('NEW CURRENCYARRAY');
+ await b.command('10 DIM B¤(2)');
+ await b.command('20 B¤(1)="YES"');
+ await b.command('30 PRINT B$(1)');
+ output='';await b.command('RUNNH');
+ assert.match(output,/YES\n/);
+ await b.command('NEW CURRENCYINPUT');
+ await b.command('10 INPUT S¤');
+ await b.command('20 PRINT S$');
+ answers=['HELLO'];output='';await b.command('RUNNH');
+ assert.match(output,/HELLO\n/);
+ console.log('PASS BASIC-11 currency-sign string variable suffix');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
