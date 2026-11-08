@@ -369,5 +369,70 @@ async function check(name, program, match, inputs=[]) {
   assert.match(b.list(),/^220 PRINT "A B A"$/m);
   await assert.rejects(b.command('SUB 110 >V¤>X¤'),/SUBSTITUTE ERROR/);
   console.log('PASS BASIC-11 SUB line editing');
+ // Shared virtual disk: BAS and DAT use different default extensions.
+ await b.command('NEW FILEIO');
+ await b.command('10 OPEN "DK1:FRUIT" FOR OUTPUT AS FILE 4');
+ await b.command('20 PRINT #4: "APPLE";",";12');
+ await b.command('30 PRINT #4: "PEAR";",";8');
+ await b.command('40 CLOSE #4');
+ await b.command('50 OPEN "DK1:FRUIT" FOR INPUT AS FILE #3');
+ await b.command('60 INPUT #3,A$,N');
+ await b.command('70 PRINT A$;N');
+ await b.command('80 INPUT #3,B$,M');
+ await b.command('90 PRINT B$;M');
+ await b.command('100 RESTORE #3');
+ await b.command('110 INPUT #3,C$,P');
+ await b.command('120 PRINT C$;P');
+ await b.command('130 CLOSE #3');
+ output='';await b.command('RUNNH');
+ assert.match(output,/APPLE12\nPEAR8\nAPPLE12\n/);
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:FRUIT.DAT'),'APPLE,12\nPEAR,8\n');
+ // EOF check and read cursor do not consume values.
+ await b.command('NEW FILEEOF');
+ await b.command('10 OPEN "DK1:FRUIT" FOR INPUT AS FILE 4');
+ await b.command('20 IF END #4 THEN 60');
+ await b.command('30 INPUT #4,A$,N');
+ await b.command('40 PRINT N');
+ await b.command('50 GO TO 20');
+ await b.command('60 CLOSE 4');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^12\n8\n/);
+ // SAVE and OPEN share the exact same .BAS file when extension is explicit.
+ await b.command('NEW SHARED');
+ await b.command('10 A=1');
+ await b.command('SAVE DK1:SHARED');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:SHARED.BAS'),'10 A=1');
+ await b.command('OPEN "DK1:SHARED.BAS" FOR INPUT AS FILE 2');
+ await b.command('INPUT #2,ROW$');
+ assert.equal(b.getVar('ROW$'),'10 A=1');
+ await b.command('CLOSE #2');
+ await b.command('NEW');
+ await b.command('LOAD DK1:SHARED');
+ assert.equal(b.list(),'10 A=1');
+ // A BASIC program can create a .BAS source file through OPEN/PRINT #.
+ await b.command('OPEN "DK1:GENERATED.BAS" FOR OUTPUT AS FILE 2');
+ await b.command('PRINT #2: "10 PRINT 42"');
+ await b.command('CLOSE #2');
+ await b.command('LOAD DK1:GENERATED');
+ assert.equal(b.list(),'10 PRINT 42');
+ output='';await b.command('FILES');
+ assert.match(output,/DK1:FRUIT\.DAT/);
+ assert.match(output,/DK1:GENERATED\.BAS/);
+ // Legacy program storage remains readable and is migrated automatically.
+ storage.setItem('pecis.basic.file.OLDSTYLE','10 PRINT "OLD"');
+ await b.command('LOAD DK1:OLDSTYLE');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:OLDSTYLE.BAS'),'10 PRINT "OLD"');
+ // LP: is a printer device rather than a disk file.
+ const fileJobs=[];
+ b.hooks.linePrinter=job=>fileJobs.push(job);
+ await b.command('NEW PRINTERIO');
+ await b.command('10 OPEN "LP:" FOR OUTPUT AS FILE 4');
+ await b.command('20 PRINT #4: "HELLO PRINTER"');
+ await b.command('30 CLOSE 4');
+ output='';await b.command('RUNNH');
+ assert.equal(fileJobs.length,1);
+ assert.match(fileJobs[0].text,/HELLO PRINTER/);
+ b.hooks.linePrinter=null;
+ console.log('PASS BASIC-11 shared virtual disk, file channels and LP printer');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

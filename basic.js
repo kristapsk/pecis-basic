@@ -57,6 +57,8 @@
         else normalized += ch;
       } else if (ch === '"') { quote = '"'; normalized += ch; }
       else if (ch === '«') { quote = '»'; normalized += '"'; }
+      // In PRINT #4: and INPUT #4: the colon belongs to the file command.
+      else if (ch === ':' && /(?:^|:)\s*(?:PRINT|INPUT)\s*#\s*\d+\s*$/i.test(normalized)) normalized += ';';
       else normalized += ch === '\\' ? ':' : ch;
     }
     // A numeric THEN target is a jump, so statements after \ run only
@@ -186,7 +188,7 @@
   class Interpreter {
     constructor(hooks = {}) {
       this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}), linePrinter: hooks.linePrinter || null, exit: hooks.exit || (()=>{}) };
-      this.lines = new Map(); this.resetState(); this.running = false; this.cancel = false;
+      this.lines = new Map(); this.virtualFiles = new Map(); this.resetState(); this.running = false; this.cancel = false;
       this.lastSaved = 'PROGRAMMA'; this.stepLimit = 1000000;
       this.programName = 'PROGRAMMA'; this.programCreated = new Date().toISOString();
     }
@@ -198,7 +200,7 @@
         + '-' + pad(date.getFullYear() % 100) + '   ' + pad(date.getHours())
         + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
     }
-    resetState() { this.vars = new Map(); this.arrays = new Map(); this.userFunctions = new Map(); this.functionDepth = 0; this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; }
+    resetState() { this.vars = new Map(); this.arrays = new Map(); this.userFunctions = new Map(); this.functionDepth = 0; this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; this.fileChannels = new Map(); }
     number(x) { const n = Number(x); if (!Number.isFinite(n)) throw new BasicError('TYPE MISMATCH'); return n; }
     truth(x) { return typeof x === 'string' ? x.length > 0 : this.number(x) !== 0; }
     getVar(name) { return this.vars.has(name) ? this.vars.get(name) : name.endsWith('$') ? '' : 0; }
@@ -499,6 +501,36 @@
     }
     storage() { const s=this.hooks.storage; if(!s)throw new BasicError('DEVICE NOT AVAILABLE');return s; }
     normalizeFile(spec) {return upper(spec.trim().replace(/^DK\d+\s*:\s*/i,'').replace(/^"|"$/g,'').replace(/\.BAS$/i,'')||this.lastSaved).replace(/[^A-Z0-9_\-ĀČĒĢĪĶĻŅŠŪŽ]/g,'_').slice(0,40);}
+    // Programs and sequential data live in the same virtual disk namespace.
+    // The command determines the DEFAULT extension, not a different filesystem.
+    filePath(filename,extension='DAT') {
+      let text=upper(String(filename).trim().replace(/^"|"$/g,''));
+      if(!text)throw new BasicError('BAD FILE NAME');
+      if(!/^[A-Z0-9]+:/.test(text))text='DK1:'+text;
+      const match=text.match(/^(DK\d+):([A-Z0-9_\-ĀČĒĢĪĶĻŅŠŪŽ]+)(?:\.([A-Z0-9]+))?$/);
+      if(!match)throw new BasicError('BAD FILE NAME');
+      return match[1]+':'+match[2]+'.'+(match[3]||extension);
+    }
+    fileRead(path) {
+      const key='pecis.basic.vfs.'+path;
+      let value=this.hooks.storage?.getItem(key) ?? this.virtualFiles.get(key) ?? null;
+      // Read old SAVE/LOAD entries and migrate them on first access.
+      const legacy=path.match(/^DK1:([^.]+)\.BAS$/);
+      if(value===null&&legacy){
+        value=this.hooks.storage?.getItem('pecis.basic.file.'+legacy[1]) ?? null;
+        if(value!==null){
+          this.fileWrite(path,value);
+          const meta=this.hooks.storage?.getItem('pecis.basic.meta.'+legacy[1]);
+          if(meta!==null&&meta!==undefined)this.hooks.storage?.setItem('pecis.basic.vfsmeta.'+path,meta);
+        }
+      }
+      return value;
+    }
+    fileWrite(path,value) {
+      const key='pecis.basic.vfs.'+path;
+      this.virtualFiles.set(key,String(value));
+      this.hooks.storage?.setItem(key,String(value));
+    }
     save(spec){
       // LP: (as in the book) and LP1: are printer device identifiers, not filenames.
       const printer=String(spec).trim().match(/^LP(1)?\s*:\s*$/i);
@@ -506,25 +538,40 @@
         const job={device:'LP1',name:this.programName,created:this.programCreated,
           text:this.listHeader()+'\n\n'+this.list()+'\n'};
         if(this.hooks.linePrinter)this.hooks.linePrinter(job);
-        else this.print(job.text); // Non-browser clients retain a readable listing.
+        else this.print(job.text);
         return;
       }
-      const filename=this.normalizeFile(spec), storage=this.storage();
-      storage.setItem('pecis.basic.file.'+filename,this.list());
+      this.storage();
+      const path=this.filePath(spec.trim()||this.lastSaved,'BAS');
+      const filename=path.slice(path.indexOf(':')+1).replace(/\.BAS$/,'');
+      this.fileWrite(path,this.list());
       this.programName=filename;
-      storage.setItem('pecis.basic.meta.'+filename,JSON.stringify({name:this.programName,created:this.programCreated}));
-      this.lastSaved=filename;this.print('SAGLABĀTS DK1:'+filename+'\n');
+      this.hooks.storage?.setItem('pecis.basic.vfsmeta.'+path,JSON.stringify({name:this.programName,created:this.programCreated}));
+      this.lastSaved=filename;this.print('SAGLABĀTS '+path.replace(/\.BAS$/,'')+'\n');
     }
     load(spec){
-      const filename=this.normalizeFile(spec), storage=this.storage(), source=storage.getItem('pecis.basic.file.'+filename);
-      if(source===null)throw new BasicError('FILE NOT FOUND: '+filename);
+      this.storage();
+      const path=this.filePath(spec.trim()||this.lastSaved,'BAS');
+      const source=this.fileRead(path);
+      if(source===null)throw new BasicError('FILE NOT FOUND: '+path);
       this.import(source);
+      const filename=path.slice(path.indexOf(':')+1).replace(/\.BAS$/,'');
       this.programName=filename;
-      const raw=storage.getItem('pecis.basic.meta.'+filename);
-      if(raw){try{const meta=JSON.parse(raw);if(meta.created&&!Number.isNaN(Date.parse(meta.created)))this.programCreated=meta.created;}catch(_){/* Old program or malformed metadata */}}
-      this.lastSaved=filename;this.print('IELĀDĒTS DK1:'+filename+'\n');
+      const raw=this.hooks.storage?.getItem('pecis.basic.vfsmeta.'+path);
+      if(raw){try{const meta=JSON.parse(raw);if(meta.created&&!Number.isNaN(Date.parse(meta.created)))this.programCreated=meta.created;}catch(_){/* Missing metadata is allowed. */}}
+      this.lastSaved=filename;this.print('IELĀDĒTS '+path.replace(/\.BAS$/,'')+'\n');
     }
-    files(){const s=this.storage(),files=[];for(let i=0;i<s.length;i++){const k=s.key(i);if(k&&k.startsWith('pecis.basic.file.'))files.push(k.slice(17));}this.print(files.sort().join('   ')+'\n');}
+    files(){
+      const names=new Set(),prefix='pecis.basic.vfs.',legacy='pecis.basic.file.';
+      for(const key of this.virtualFiles.keys())if(key.startsWith(prefix))names.add(key.slice(prefix.length));
+      const s=this.hooks.storage;
+      if(s)for(let i=0;i<s.length;i++){
+        const key=s.key(i);
+        if(key?.startsWith(prefix))names.add(key.slice(prefix.length));
+        if(key?.startsWith(legacy))names.add('DK1:'+key.slice(legacy.length)+'.BAS');
+      }
+      this.print([...names].sort().join('   ')+'\n');
+    }
     stop(){this.cancel=true;}
     jumpTo(ctx,line){const lineNum=Math.trunc(this.number(line));if(!ctx.compiled.locations.has(lineNum))throw new BasicError('UNDEFINED LINE');ctx.jump=ctx.compiled.locations.get(lineNum);}
     parseIfStatement(text,ctx){
@@ -533,16 +580,101 @@
       const pos=positionOfWord(tail,'ELSE');const part=this.truth(cond)?(pos>=0?tail.slice(0,pos):tail):(pos>=0?tail.slice(pos+4):'');
       return part.trim();
     }
+    // A channel is an open view on a file in the shared virtual disk.
+    fileNumber(expr) {
+      const number=this.number(this.evaluate(expr.trim().replace(/^#\s*/,'')));
+      if(!Number.isInteger(number)||number<1||number>127)throw new BasicError('BAD FILE NUMBER');
+      return number;
+    }
+    fileChannel(expr,mode) {
+      const channel=this.fileChannels.get(this.fileNumber(expr));
+      if(!channel||channel.mode!==mode)throw new BasicError('FILE NOT OPEN');
+      return channel;
+    }
+    openFile(spec) {
+      const match=spec.match(/^(.+?)\s+FOR\s+(INPUT|OUTPUT)\s+AS\s+(?:FILE\s+)?#?\s*(.+)$/i);
+      if(!match)throw new BasicError('SYNTAX ERROR');
+      const filename=this.evaluate(match[1].trim());
+      if(typeof filename!=='string'||!filename.trim())throw new BasicError('TYPE MISMATCH');
+      const number=this.fileNumber(match[3]);
+      if(this.fileChannels.has(number))throw new BasicError('FILE ALREADY OPEN');
+      const printer=/^LP\d*:$/.test(upper(filename.trim())),mode=upper(match[2]);
+      if(printer&&mode!=='OUTPUT')throw new BasicError('DEVICE NOT AVAILABLE');
+      const path=printer?null:this.filePath(filename,'DAT');
+      const saved=path?this.fileRead(path):null;
+      if(mode==='INPUT'&&saved===null)throw new BasicError('FILE NOT FOUND');
+      const lines=mode==='INPUT'?String(saved).split(/\r?\n/):[];
+      if(mode==='INPUT'&&lines.at(-1)==='')lines.pop();
+      this.fileChannels.set(number,{path,mode,printer,lines,index:0,values:[],chunks:[],pending:''});
+    }
+    printFile(spec) {
+      const match=spec.match(/^#\s*([^;:]+)\s*[;:]\s*([\s\S]*)$/);
+      if(!match)throw new BasicError('SYNTAX ERROR');
+      const channel=this.fileChannel(match[1],'OUTPUT');
+      const output=this.outputBuffer,print=this.hooks.print;
+      this.outputBuffer=channel.pending;
+      this.hooks.print=text=>channel.chunks.push(text);
+      try {this.printStatement(match[2]);channel.pending=this.outputBuffer;}
+      finally {this.outputBuffer=output;this.hooks.print=print;}
+    }
+    inputFile(spec) {
+      const match=spec.match(/^#\s*([^;:,]+)\s*[;:,]\s*(.+)$/);
+      if(!match)throw new BasicError('SYNTAX ERROR');
+      const channel=this.fileChannel(match[1],'INPUT'),targets=splitOutside(match[2],',');
+      if(targets.some(t=>!t.trim()))throw new BasicError('SYNTAX ERROR');
+      for(const target of targets){
+        while(!channel.values.length){
+          if(channel.index>=channel.lines.length)throw new BasicError('OUT OF DATA');
+          const line=channel.lines[channel.index++];
+          if(!line.trim())continue;
+          channel.values=parseInputValues(line);
+        }
+        const t=this.parseTarget(target),raw=channel.values.shift();
+        const val=t.name.endsWith('$')?raw:Number(raw);
+        if(!t.name.endsWith('$')&&!Number.isFinite(val))throw new BasicError('TYPE MISMATCH');
+        this.assign(target,val);
+      }
+    }
+    closeFiles(spec='') {
+      const numbers=spec.trim()?splitOutside(spec,',').map(item=>this.fileNumber(item)):[...this.fileChannels.keys()];
+      for(const number of numbers){
+        const channel=this.fileChannels.get(number);
+        if(!channel)throw new BasicError('FILE NOT OPEN');
+        if(channel.mode==='OUTPUT'){
+          const text=channel.chunks.join('')+channel.pending;
+          if(channel.printer){
+            const job={device:'LP1',name:this.programName,created:this.programCreated,text};
+            if(this.hooks.linePrinter)this.hooks.linePrinter(job);
+            else this.print(text);
+          }else this.fileWrite(channel.path,text);
+        }
+        this.fileChannels.delete(number);
+      }
+    }
     async execute(statement,ctx) {
       const src=statement.trim();if(!src)return;
       if(/^REM/i.test(src)||src.startsWith("'"))return;
       const m=src.match(/^([A-Za-z]+\$?|\?)(?=\W|$)\s*(.*)$/s);
       const cmd=m?upper(m[1]):'';let rest=m?m[2]:src;
+      if(cmd==='OPEN'){this.openFile(rest);return;}
+      if(cmd==='CLOSE'){this.closeFiles(rest);return;}
+      if(cmd==='PRINT'&&/^#/.test(rest)){this.printFile(rest);return;}
       if(cmd==='PRINT'||cmd==='?'){this.printStatement(rest);return;}
       if(cmd==='DEF'){if(ctx.interactive)throw new BasicError('ILLEGAL DIRECT');this.defineFunction(rest);return;}
       if(cmd==='LET'||this.findEquals(src)>=0 && !/^(IF|FOR|DEF|ON|DATA)\b/i.test(src)){
         const assign=cmd==='LET'?rest:src,idx=this.findEquals(assign);if(idx<0)throw new BasicError('SYNTAX ERROR');
         this.assign(assign.slice(0,idx),this.evaluate(assign.slice(idx+1)));return;
+      }
+      if(cmd==='IF'&&/^END\s*#/.test(rest)){
+        const match=rest.match(/^END\s*#\s*(.+?)\s+THEN\s+(.+)$/i);
+        if(!match)throw new BasicError('SYNTAX ERROR');
+        const channel=this.fileChannel(match[1],'INPUT');
+        if(!channel.values.length&&channel.index>=channel.lines.length){
+          const branch=match[2].trim();
+          if(/^\d+$/.test(branch))this.jumpTo(ctx,Number(branch));
+          else for(const piece of splitStatements(branch))await this.execute(piece,ctx);
+        }
+        return;
       }
       if(cmd==='IF'){
         const branch=this.parseIfStatement(rest,ctx);if(!branch)return;
@@ -596,12 +728,17 @@
           this.assign(target,value);
         }return;
       }
+      if(cmd==='RESTORE'&&/^#/.test(rest)){
+        const channel=this.fileChannel(rest.replace(/^#\s*/,''),'INPUT');
+        channel.index=0;channel.values=[];return;
+      }
       if(cmd==='RESTORE'){const line=rest.trim()?this.number(this.evaluate(rest)):null;ctx.dataIndex=line===null?0:((i)=>i<0?ctx.compiled.data.length:i)(ctx.compiled.data.findIndex(x=>x.line>=line));return;}
       if(cmd==='ON'){
         const match=rest.match(/^(.*?)\s+(GOTO|GO\s+TO|GOSUB)\s+(.+)$/i);if(!match)throw new BasicError('SYNTAX ERROR');
         const index=Math.trunc(this.number(this.evaluate(match[1])));const targets=splitOutside(match[3],',');
         if(index>=1&&index<=targets.length){if(upper(match[2])==='GOSUB')ctx.callStack.push(ctx.pc+1);this.jumpTo(ctx,this.evaluate(targets[index-1]));}return;
       }
+      if(cmd==='INPUT'&&/^#/.test(rest)){this.inputFile(rest);return;}
       if(cmd==='INPUT'){
         const pieces=splitOutside(rest,';');let prompt='? ';
         if(pieces.length>1&&/^\s*"/.test(pieces[0])){prompt=String(this.evaluate(pieces.shift()))+'? ';rest=pieces.join(';');}
@@ -661,7 +798,10 @@
         this.flushOutput();
         this.print('\nREADY\n');
       } catch(err){this.flushOutput();throw err;}
-      finally {this.running=false;this.hooks.status('READY');}
+      finally {
+        try {if(this.fileChannels.size)this.closeFiles();}
+        finally {this.running=false;this.hooks.status('READY');}
+      }
     }
   }
   return { Interpreter, BasicError, splitStatements, tokenize };
