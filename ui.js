@@ -53,6 +53,7 @@ function clear(){output.textContent='';}
 function setStatus(state){$('statusLabel').textContent=state==='RUNNING'?'IZPILDE':state;}
 function toast(text){const t=$('toast');t.textContent=text;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
 const basic=new PecisBasic.Interpreter({print:s=>add(s),clear,status:setStatus,storage,
+  linePrinter:job=>PecisPrinter.print(job,toast),
   input: (question)=>new Promise(resolve=>{inputResolver=resolve;prompt.textContent=question;form.classList.add('input-pending');input.placeholder='ievadi atbildi';input.focus();})});
 function finishInput(){inputResolver=null;prompt.textContent='READY >';form.classList.remove('input-pending');input.placeholder='raksti komandu un spied ENTER';}
 function showError(err){add((err instanceof PecisBasic.BasicError?'? ':'! ')+(err.message||String(err))+(err.line!==null&&err.line!==undefined?' RINDĀ '+err.line:'')+'\n','err');}

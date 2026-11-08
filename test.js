@@ -79,5 +79,24 @@ async function check(name, program, match, inputs=[]) {
  output='';
  await b.command('RUN 10');
  assert.match(output,/^\nSUPER\s+/);
+ // Both printer aliases dispatch a print job, not a disk SAVE.
+ await b.command('NEW SUPER');
+ await b.command('10 PRINT "HELLO"');
+ const printJobs=[];
+ b.hooks.linePrinter=job=>printJobs.push(job);
+ output='';
+ await b.command('SAVE LP:');
+ await b.command('SAVE LP1:');
+ assert.equal(printJobs.length,2);
+ for(const job of printJobs){
+   assert.equal(job.device,'LP1');
+   assert.equal(job.name,'SUPER');
+   assert.match(job.text,/SUPER[\s\S]*10 PRINT "HELLO"/);
+ }
+ assert.equal(output,'');
+ assert.equal(storage.getItem('pecis.basic.file.LP'),null);
+ assert.equal(storage.getItem('pecis.basic.file.LP1'),null);
+ b.hooks.linePrinter=null;
+ console.log('PASS SAVE LP:/LP1: printer dispatch');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

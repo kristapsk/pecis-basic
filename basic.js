@@ -125,7 +125,7 @@
 
   class Interpreter {
     constructor(hooks = {}) {
-      this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}) };
+      this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}), linePrinter: hooks.linePrinter || null };
       this.lines = new Map(); this.resetState(); this.running = false; this.cancel = false;
       this.lastSaved = 'PROGRAMMA'; this.stepLimit = 1000000;
       this.programName = 'PROGRAMMA'; this.programCreated = new Date().toISOString();
@@ -292,7 +292,15 @@
     storage() { const s=this.hooks.storage; if(!s)throw new BasicError('SAGLABĀŠANA NAV PIEEJAMA');return s; }
     normalizeFile(spec) {return upper(spec.trim().replace(/^DK\d+\s*:\s*/i,'').replace(/^"|"$/g,'').replace(/\.BAS$/i,'')||this.lastSaved).replace(/[^A-Z0-9_\-ĀČĒĢĪĶĻŅŠŪŽ]/g,'_').slice(0,40);}
     save(spec){
-      if(/^LP\d+\s*:/i.test(spec)){this.print(this.list()+'\n');this.print('LISTINGS NOSŪTĪTS UZ LP1:\n');return;}
+      // LP: (as in the book) and LP1: are printer device identifiers, not filenames.
+      const printer=String(spec).trim().match(/^LP(1)?\s*:\s*$/i);
+      if(printer){
+        const job={device:'LP1',name:this.programName,created:this.programCreated,
+          text:this.listHeader()+'\n\n'+this.list()+'\n'};
+        if(this.hooks.linePrinter)this.hooks.linePrinter(job);
+        else this.print(job.text); // Non-browser clients retain a readable listing.
+        return;
+      }
       const filename=this.normalizeFile(spec), storage=this.storage();
       storage.setItem('pecis.basic.file.'+filename,this.list());
       this.programName=filename;
