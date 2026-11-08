@@ -128,6 +128,15 @@
       this.hooks = { print: hooks.print || (()=>{}), input: hooks.input || (async ()=>''), clear: hooks.clear || (()=>{}), storage: hooks.storage || null, status: hooks.status || (()=>{}) };
       this.lines = new Map(); this.resetState(); this.running = false; this.cancel = false;
       this.lastSaved = 'PROGRAMMA'; this.stepLimit = 1000000;
+      this.programName = 'PROGRAMMA'; this.programCreated = new Date().toISOString();
+    }
+    listHeader() {
+      const date = new Date(this.programCreated);
+      const pad = n => String(n).padStart(2, '0');
+      const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      return this.programName + '   ' + pad(date.getDate()) + '-' + months[date.getMonth()]
+        + '-' + pad(date.getFullYear() % 100) + '   ' + pad(date.getHours())
+        + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
     }
     resetState() { this.vars = new Map(); this.arrays = new Map(); this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; }
     number(x) { const n = Number(x); if (!Number.isFinite(n)) throw new BasicError('GAIDĪTS SKAITLIS'); return n; }
@@ -184,7 +193,7 @@
     }
     evaluate(expr) { return new ExpressionParser(this, expr).parse(); }
     list(from=null,to=null) { return [...this.lines.entries()].sort((a,b)=>a[0]-b[0]).filter(([n])=>(from===null||n>=from)&&(to===null||n<=to)).map(([n,v])=>n+' '+v).join('\n'); }
-    import(text) { const fresh=new Map(); for (const line of String(text).split(/\r?\n/)) { if (!line.trim()) continue; const m=line.match(/^\s*(\d+)\s*(.*)$/); if (!m) throw new BasicError('NEPAREIZA PROGRAMMAS RINDA: '+line.slice(0,30)); const n=Number(m[1]); if (n<=0||n>65535) throw new BasicError('NEPAREIZS RINDAS NUMURS'); if (m[2].trim()) fresh.set(n,m[2].trim()); } this.lines=fresh; }
+    import(text) { const fresh=new Map(); for (const line of String(text).split(/\r?\n/)) { if (!line.trim()) continue; const m=line.match(/^\s*(\d+)\s*(.*)$/); if (!m) throw new BasicError('NEPAREIZA PROGRAMMAS RINDA: '+line.slice(0,30)); const n=Number(m[1]); if (n<=0||n>65535) throw new BasicError('NEPAREIZS RINDAS NUMURS'); if (m[2].trim()) fresh.set(n,m[2].trim()); } this.lines=fresh; this.programName='PROGRAMMA'; this.programCreated=new Date().toISOString(); }
     print(msg) { this.hooks.print(String(msg)); }
     flushOutput() { if (this.outputBuffer) { this.print(this.outputBuffer+'\n'); this.outputBuffer=''; } }
     outputPart(value) {
@@ -250,8 +259,8 @@
       }
       const m=source.match(/^([A-Za-z]+\$?|\?)(?:\s+(.*))?$/); const word=m?upper(m[1]):''; const rest=m?(m[2]||''):'';
       if(word==='RUN'||word==='RUNNH'){await this.run(rest);return;}
-      if(word==='LIST'||word==='LLIST'){const [from,to]=this.parseLineSpec(rest);this.print((this.list(from,to)||'')+'\n');return;}
-      if(word==='NEW'){this.lines.clear();this.resetState();this.print('JAUNA PROGRAMMA\n');return;}
+      if(word==='LIST'||word==='LLIST'){const [from,to]=this.parseLineSpec(rest);this.print('\n'+this.listHeader()+'\n\n'+(this.list(from,to)||'')+'\n');return;}
+      if(word==='NEW'){this.lines.clear();this.resetState();this.programName='PROGRAMMA';this.programCreated=new Date().toISOString();this.print('JAUNA PROGRAMMA\n');return;}
       if(word==='CLEAR'){this.resetState();return;}
       if(word==='CLS'||word==='HOME'){this.hooks.clear();return;}
       if(word==='HELP'){this.print('RUN  LIST  NEW  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
@@ -284,9 +293,21 @@
     normalizeFile(spec) {return upper(spec.trim().replace(/^DK\d+\s*:\s*/i,'').replace(/^"|"$/g,'').replace(/\.BAS$/i,'')||this.lastSaved).replace(/[^A-Z0-9_\-ĀČĒĢĪĶĻŅŠŪŽ]/g,'_').slice(0,40);}
     save(spec){
       if(/^LP\d+\s*:/i.test(spec)){this.print(this.list()+'\n');this.print('LISTINGS NOSŪTĪTS UZ LP1:\n');return;}
-      const filename=this.normalizeFile(spec);this.storage().setItem('pecis.basic.file.'+filename,this.list());this.lastSaved=filename;this.print('SAGLABĀTS DK1:'+filename+'\n');
+      const filename=this.normalizeFile(spec), storage=this.storage();
+      storage.setItem('pecis.basic.file.'+filename,this.list());
+      this.programName=filename;
+      storage.setItem('pecis.basic.meta.'+filename,JSON.stringify({name:this.programName,created:this.programCreated}));
+      this.lastSaved=filename;this.print('SAGLABĀTS DK1:'+filename+'\n');
     }
-    load(spec){const filename=this.normalizeFile(spec);const source=this.storage().getItem('pecis.basic.file.'+filename);if(source===null)throw new BasicError('FAILS NAV ATRASTS: '+filename);this.import(source);this.lastSaved=filename;this.print('IELĀDĒTS DK1:'+filename+'\n');}
+    load(spec){
+      const filename=this.normalizeFile(spec), storage=this.storage(), source=storage.getItem('pecis.basic.file.'+filename);
+      if(source===null)throw new BasicError('FAILS NAV ATRASTS: '+filename);
+      this.import(source);
+      this.programName=filename;
+      const raw=storage.getItem('pecis.basic.meta.'+filename);
+      if(raw){try{const meta=JSON.parse(raw);if(meta.created&&!Number.isNaN(Date.parse(meta.created)))this.programCreated=meta.created;}catch(_){/* Old program or malformed metadata */}}
+      this.lastSaved=filename;this.print('IELĀDĒTS DK1:'+filename+'\n');
+    }
     files(){const s=this.storage(),files=[];for(let i=0;i<s.length;i++){const k=s.key(i);if(k&&k.startsWith('pecis.basic.file.'))files.push(k.slice(17));}this.print(files.sort().join('   ')+'\n');}
     stop(){this.cancel=true;}
     jumpTo(ctx,line){const lineNum=Math.trunc(this.number(line));if(!ctx.compiled.locations.has(lineNum))throw new BasicError('RINDA '+lineNum+' NAV ATRASTA');ctx.jump=ctx.compiled.locations.get(lineNum);}
