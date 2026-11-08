@@ -248,6 +248,19 @@ async function check(name, program, match, inputs=[]) {
  await b.command('20 PRINT S$');
  answers=['HELLO'];output='';await b.command('RUNNH');
  assert.match(output,/HELLO\n/);
+  // The book uses «...» for string literals; LIST preserves that spelling.
+  await check('guillemets: book example',
+    '10 PRINT «PROGRAMMA SAKAHRTO 2 VAHRDUS PEHC ALFABEHTA»\n20 PRINT «IEVADIET DIVUS VAHRDUS»\n30 INPUT S1¤, S2¤\n40 IF S1¤>S2¤ THEN 60\n50 PRINT S1¤, S2¤\n60 PRINT S2¤, S1¤\n70 STOP\n80 END',
+    /PROGRAMMA SAKAHRTO 2 VAHRDUS PEHC ALFABEHTA/, ['A,B']);
+  assert.match(output,/IEVADIET DIVUS VAHRDUS/);
+  assert.match(b.list(),/10 PRINT «PROGRAMMA SAKAHRTO/);
+  await check('guillemets: separators within literal',
+    '10 PRINT «A;B,C:D\\E» \\ PRINT "OK"', /A;B,C:D\\E\nOK/);
+  await check('guillemets: assignment, comparison and mixed quotes',
+    '10 A¤=«A»\n20 B$="A"\n30 IF A¤=B$ THEN PRINT «MATCH"ED»', /MATCH"ED/);
+  await check('guillemets: literal signs inside ASCII quotes',
+    '10 PRINT "«not a delimiter»"', /«not a delimiter»/);
+  console.log('PASS BASIC-11 guillemet string literals');
  console.log('PASS BASIC-11 currency-sign string variable suffix');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

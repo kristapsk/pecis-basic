@@ -39,16 +39,25 @@
     return -1;
   }
   function splitStatements(source) {
-    // BASIC-11 uses backslash as a statement separator (like the existing colon).
-    // Do not split backslashes inside quoted strings, including doubled quotes.
-    let normalized = '', quoted = false;
+    // BASIC-11 accepts both ASCII quotes and book-style guillemets («...»).
+    // Normalize only for execution; LIST retains the original program text.
+    // Backslashes outside strings separate statements.
+    let normalized = '', quote = null;
     for (let i = 0; i < source.length; i++) {
       const ch = source[i];
-      if (ch === '"') {
-        if (quoted && source[i + 1] === '"') { normalized += '""'; i++; continue; }
-        quoted = !quoted;
-      }
-      normalized += ch === '\\' && !quoted ? ':' : ch;
+      if (quote === '"') {
+        if (ch === '"') {
+          if (source[i + 1] === '"') { normalized += '""'; i++; continue; }
+          quote = null;
+        }
+        normalized += ch;
+      } else if (quote === '»') {
+        if (ch === '»') { normalized += '"'; quote = null; }
+        else if (ch === '"') normalized += '""';
+        else normalized += ch;
+      } else if (ch === '"') { quote = '"'; normalized += ch; }
+      else if (ch === '«') { quote = '»'; normalized += '"'; }
+      else normalized += ch === '\\' ? ':' : ch;
     }
     // IF owns everything after THEN, including separated branch statements.
     const tokens = splitOutside(normalized, ':'); const results = [];
