@@ -339,5 +339,25 @@ async function check(name, program, match, inputs=[]) {
  output='';await b.command('RUNNH');
  assert.match(output,/^3\n/); // RUN must reset definitions so they can be defined again.
  console.log('PASS BASIC-11 DAT$, CLK$ and DEF FN');
+  // SUB edits the LISTed line with an arbitrary delimiter (also without a space).
+  await b.command('NEW SUBTEST');
+  await b.command('110 G¤=V¤+G¤');
+  output='';await b.command('SUB110>G¤>V¤>');
+  assert.equal(output,'110 V¤=V¤+G¤\n');
+  assert.match(b.list(),/^110 V¤=V¤\+G¤$/);
+  output='';await b.command('SUB 110 >G¤>>');
+  assert.equal(output,'110 V¤=V¤+\n');
+  output='';await b.command('SUB 110 >ABSENT>NEW>');
+  assert.equal(output,'110 V¤=V¤+\n');
+  await b.command('120 PRINT "A A A"');
+  output='';await b.command('SUB 120 /A/B/2');
+  assert.equal(output,'120 PRINT "A B A"\n');
+  // Replacing a line number creates a new line and leaves the original intact.
+  output='';await b.command('SUB120/120/220/');
+  assert.equal(output,'220 PRINT "A B A"\n');
+  assert.match(b.list(),/^120 PRINT "A B A"$/m);
+  assert.match(b.list(),/^220 PRINT "A B A"$/m);
+  await assert.rejects(b.command('SUB 110 >V¤>X¤'),/SUBSTITUTE ERROR/);
+  console.log('PASS BASIC-11 SUB line editing');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

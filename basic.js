@@ -380,13 +380,14 @@
         if(!line[2]||!line[2].trim())this.lines.delete(n);else this.lines.set(n,line[2].trim());return;
       }
       const m=source.match(/^([A-Za-z]+\$?|\?)(?:\s+(.*))?$/); const word=m?upper(m[1]):''; const rest=m?(m[2]||''):'';
+      if(/^SUB(?=\s*\d)/i.test(source)){this.substitute(source.slice(3));return;}
       if(word==='RUN'||word==='RUNNH'){await this.run(rest,word==='RUN');return;}
       if(word==='LIST'||word==='LLIST'){const [from,to]=this.parseLineSpec(rest);this.print('\n'+this.listHeader()+'\n\n'+(this.list(from,to)||'')+'\n');return;}
       if(word==='LISTNH'){const [from,to]=this.parseLineSpec(rest);this.print((this.list(from,to)||'')+'\n');return;}
       if(word==='NEW'){this.lines.clear();this.resetState();this.programName=upper(rest.trim()||'PROGRAMMA');this.programCreated=new Date().toISOString();return;}
       if(word==='CLEAR'){this.resetState();return;}
       if(word==='CLS'||word==='HOME'){this.hooks.clear();return;}
-      if(word==='HELP'){this.print('RUN  LIST  LISTNH  NEW  RESEQ  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
+      if(word==='HELP'){this.print('RUN  LIST  LISTNH  SUB  NEW  RESEQ  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
       if(word==='RENUM'){this.renumber(rest);return;}
       if(word==='RESEQ'){this.resequence(rest);return;}
       if(word==='SAVE'){this.save(rest);return;}
@@ -397,6 +398,38 @@
       const context={pc:0,steps:0,interactive:true,compiled:{instructions:[],locations:new Map(),data:[]},jump:null,stopped:false};
       for(const stmt of splitStatements(source))await this.execute(stmt,context);
       this.flushOutput();
+    }
+    substitute(spec) {
+      // BASIC-11: SUB line delimiter old delimiter new delimiter [occurrence].
+      // The substitution applies to the LISTed line, including its number.
+      const match=spec.trim().match(/^(\d+)\s*(\S)([\s\S]*)$/);
+      if(!match || /\d/.test(match[2]))throw new BasicError('SUBSTITUTE ERROR');
+      const oldLine=Number(match[1]), delimiter=match[2], tail=match[3];
+      if(!this.lines.has(oldLine))throw new BasicError('UNDEFINED LINE');
+      const middle=tail.indexOf(delimiter);
+      const end=middle<0?-1:tail.indexOf(delimiter,middle+1);
+      if(middle<=0 || end<0)throw new BasicError('SUBSTITUTE ERROR');
+      const before=tail.slice(0,middle), after=tail.slice(middle+1,end);
+      const suffix=tail.slice(end+1).trim();
+      if(suffix && !/^[1-9]\d*$/.test(suffix))throw new BasicError('SUBSTITUTE ERROR');
+      const occurrence=suffix?Number(suffix):1;
+      if(!Number.isSafeInteger(occurrence))throw new BasicError('SUBSTITUTE ERROR');
+      const original=oldLine+' '+this.lines.get(oldLine);
+      let at=-1, start=0;
+      for(let i=0;i<occurrence;i++){
+        at=original.indexOf(before,start);
+        if(at<0)break;
+        start=at+before.length;
+      }
+      if(at<0){this.print(original+'\n');return;}
+      const changed=original.slice(0,at)+after+original.slice(at+before.length);
+      const parsed=changed.match(/^(\d+)\s+(.+)$/);
+      if(!parsed || Number(parsed[1])<1 || Number(parsed[1])>65535)
+        throw new BasicError('SUBSTITUTE ERROR');
+      const newLine=Number(parsed[1]);
+      // Changing the line number copies the line rather than deleting the old one.
+      this.lines.set(newLine,parsed[2]);
+      this.print(newLine+' '+parsed[2]+'\n');
     }
     renumber(rest) {
       const args=rest.trim()?rest.split(/\s*,\s*/).map(x=>Number(x)):[];
