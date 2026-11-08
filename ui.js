@@ -57,7 +57,7 @@ const basic=new PecisBasic.Interpreter({print:s=>add(s),clear,status:setStatus,s
   exit:()=>window.location.reload(),
   input: (question)=>new Promise(resolve=>{inputResolver=resolve;prompt.textContent=question;form.classList.add('input-pending');input.placeholder='ievadi atbildi';input.focus();})});
 function finishInput(){inputResolver=null;prompt.textContent='READY >';form.classList.remove('input-pending');input.placeholder='raksti komandu un spied ENTER';}
-function showError(err){add((err instanceof PecisBasic.BasicError?'? ':'! ')+(err.message||String(err))+(err.line!==null&&err.line!==undefined?' RINDĀ '+err.line:'')+'\n','err');}
+function showError(err){add((err instanceof PecisBasic.BasicError?'? ':'! ')+(err.message||String(err))+(err.line!==null&&err.line!==undefined?' AT LINE '+err.line:'')+'\n','err');}
 async function command(text, echo=true){
  if(inputResolver){let resolve=inputResolver;add(prompt.textContent+text+'\n','old-input');finishInput();resolve(text);return;}
  if(busy){toast('PROGRAMMA TIEK IZPILDĪTA — Nospied BREAK');return;}

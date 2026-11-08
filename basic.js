@@ -65,7 +65,7 @@
           }
           s += text[i++];
         }
-        if (!closed) throw new BasicError('NEPABEIGTA TEKSTA VIRKNE');
+        if (!closed) throw new BasicError('SYNTAX ERROR');
         out.push({ type: 'string', value: s }); continue;
       }
       const number = rest.match(/^(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?/);
@@ -74,7 +74,7 @@
       if (id) { out.push({ type: 'id', value: upper(id[0]) }); i += id[0].length; continue; }
       const op = rest.match(/^(<=|>=|<>|!=|==|[+\-*/^=<>(),;])/);
       if (op) { out.push({ type: 'op', value: op[0] }); i += op[0].length; continue; }
-      throw new BasicError('NEATPAZĪTA ZĪME: ' + ch);
+      throw new BasicError('SYNTAX ERROR');
     }
     out.push({ type: 'eof', value: '' }); return out;
   }
@@ -84,8 +84,8 @@
     peek() { return this.items[this.at]; }
     next() { return this.items[this.at++]; }
     eat(sym) { if (this.peek().value === sym) { this.at++; return true; } return false; }
-    expect(sym) { if (!this.eat(sym)) throw new BasicError('GAIDĪTS ' + sym); }
-    parse() { const value = this.expr(0); if (this.peek().type !== 'eof') throw new BasicError('IZTEIKSMES SINTAKSES KĻŪDA'); return value; }
+    expect(sym) { if (!this.eat(sym)) throw new BasicError('SYNTAX ERROR'); }
+    parse() { const value = this.expr(0); if (this.peek().type !== 'eof') throw new BasicError('SYNTAX ERROR'); return value; }
     expr(min) {
       let tok = this.next(), left;
       if (tok.type === 'number' || tok.type === 'string') left = tok.value;
@@ -99,7 +99,7 @@
           if (!this.eat(')')) { do { args.push(this.expr(0)); } while (this.eat(',')); this.expect(')'); }
           left = this.runtime.resolveCall(tok.value, args);
         } else left = this.runtime.getVar(tok.value);
-      } else throw new BasicError('IZTEIKSMES SINTAKSES KĻŪDA');
+      } else throw new BasicError('SYNTAX ERROR');
       while (true) {
         const op = this.peek().value, prec = priorities[op];
         if (prec === undefined || prec < min) break;
@@ -110,7 +110,7 @@
     }
   }
   function formatNum(n) {
-    if (!Number.isFinite(n)) throw new BasicError('SKAITĻOŠANAS KĻŪDA');
+    if (!Number.isFinite(n)) throw new BasicError('OVERFLOW');
     if (Object.is(n, -0) || n === 0) return '0';
     // The book describes six significant digits in printed numeric results.
     // Keep ordinary values in decimal form; use E notation outside this range.
@@ -139,18 +139,18 @@
         + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
     }
     resetState() { this.vars = new Map(); this.arrays = new Map(); this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; }
-    number(x) { const n = Number(x); if (!Number.isFinite(n)) throw new BasicError('GAIDĪTS SKAITLIS'); return n; }
+    number(x) { const n = Number(x); if (!Number.isFinite(n)) throw new BasicError('TYPE MISMATCH'); return n; }
     truth(x) { return typeof x === 'string' ? x.length > 0 : this.number(x) !== 0; }
     getVar(name) { return this.vars.has(name) ? this.vars.get(name) : name.endsWith('$') ? '' : 0; }
     setVar(name, value) {
       if (name.endsWith('$')) this.vars.set(name, String(value));
       else { const num = this.number(value); this.vars.set(name, name.endsWith('%') ? Math.trunc(num) : num); }
     }
-    keyFor(indices) { return indices.map(n=>{ if (n < 0 || !Number.isInteger(n)) throw new BasicError('NEPAREIZS MASĪVA INDEKSS'); return n; }).join(','); }
+    keyFor(indices) { return indices.map(n=>{ if (n < 0 || !Number.isInteger(n)) throw new BasicError('BAD SUBSCRIPT'); return n; }).join(','); }
     array(name, indices) {
       let entry = this.arrays.get(name);
       if (!entry) { entry = { dims: indices.map(()=>10), values: new Map() }; this.arrays.set(name, entry); }
-      if (indices.length !== entry.dims.length || indices.some((n,i)=>n>entry.dims[i])) throw new BasicError('MASĪVA INDEKSS ĀRPUS ROBEŽĀM');
+      if (indices.length !== entry.dims.length || indices.some((n,i)=>n>entry.dims[i])) throw new BasicError('BAD SUBSCRIPT');
       return entry;
     }
     getArray(name, indices) { const a=this.array(name,indices.map(x=>Math.trunc(this.number(x)))); const key=this.keyFor(indices.map(x=>Math.trunc(this.number(x)))); return a.values.has(key) ? a.values.get(key) : name.endsWith('$')?'':0; }
@@ -159,16 +159,16 @@
       if (op === 'AND') return this.truth(a) && this.truth(b) ? -1 : 0;
       if (op === 'OR') return this.truth(a) || this.truth(b) ? -1 : 0;
       if (['=','==','<>','!=','<','>','<=','>='].includes(op)) {
-        if (typeof a !== typeof b) throw new BasicError('NESADERĪGI DATU TIPI');
+        if (typeof a !== typeof b) throw new BasicError('TYPE MISMATCH');
         const ok = ({ '=':()=>a===b, '==':()=>a===b, '<>':()=>a!==b, '!=':()=>a!==b, '<':()=>a<b, '>':()=>a>b, '<=':()=>a<=b, '>=':()=>a>=b })[op]();
         return ok ? -1 : 0;
       }
       if (op === '+' && typeof a==='string' && typeof b==='string') return a+b;
       const x=this.number(a), y=this.number(b);
-      if (op==='/' && y===0) throw new BasicError('DALĪŠANA AR NULLI');
+      if (op==='/' && y===0) throw new BasicError('DIVISION BY ZERO');
       const fn={'+':()=>x+y,'-':()=>x-y,'*':()=>x*y,'/':()=>x/y,'^':()=>Math.pow(x,y)}[op];
-      if (!fn) throw new BasicError('NEZINĀMS OPERATORS');
-      const value=fn(); if (!Number.isFinite(value)) throw new BasicError('SKAITĻOŠANAS KĻŪDA'); return value;
+      if (!fn) throw new BasicError('SYNTAX ERROR');
+      const value=fn(); if (!Number.isFinite(value)) throw new BasicError('OVERFLOW'); return value;
     }
     resolveCall(name,args) {
       const n=i=>this.number(args[i]), s=i=>String(args[i]);
@@ -187,13 +187,13 @@
         'TAB':()=>({ spacing:'TAB', value:n(0) }), 'SPC':()=>({ spacing:'SPC', value:n(0) })
       };
       if (Object.prototype.hasOwnProperty.call(funcs,name)) {
-        const result=funcs[name](); if (typeof result === 'number' && !Number.isFinite(result)) throw new BasicError('NEATĻAUTA FUNKCIJAS ARGUMENTA VĒRTĪBA'); return result;
+        const result=funcs[name](); if (typeof result === 'number' && !Number.isFinite(result)) throw new BasicError('ILLEGAL FUNCTION CALL'); return result;
       }
       return this.getArray(name,args);
     }
     evaluate(expr) { return new ExpressionParser(this, expr).parse(); }
     list(from=null,to=null) { return [...this.lines.entries()].sort((a,b)=>a[0]-b[0]).filter(([n])=>(from===null||n>=from)&&(to===null||n<=to)).map(([n,v])=>n+' '+v).join('\n'); }
-    import(text) { const fresh=new Map(); for (const line of String(text).split(/\r?\n/)) { if (!line.trim()) continue; const m=line.match(/^\s*(\d+)\s*(.*)$/); if (!m) throw new BasicError('NEPAREIZA PROGRAMMAS RINDA: '+line.slice(0,30)); const n=Number(m[1]); if (n<=0||n>65535) throw new BasicError('NEPAREIZS RINDAS NUMURS'); if (m[2].trim()) fresh.set(n,m[2].trim()); } this.lines=fresh; this.programName='PROGRAMMA'; this.programCreated=new Date().toISOString(); }
+    import(text) { const fresh=new Map(); for (const line of String(text).split(/\r?\n/)) { if (!line.trim()) continue; const m=line.match(/^\s*(\d+)\s*(.*)$/); if (!m) throw new BasicError('SYNTAX ERROR'); const n=Number(m[1]); if (n<=0||n>65535) throw new BasicError('BAD LINE NUMBER'); if (m[2].trim()) fresh.set(n,m[2].trim()); } this.lines=fresh; this.programName='PROGRAMMA'; this.programCreated=new Date().toISOString(); }
     print(msg) { this.hooks.print(String(msg)); }
     flushOutput() { if (this.outputBuffer) { this.print(this.outputBuffer+'\n'); this.outputBuffer=''; } }
     outputPart(value) {
@@ -222,7 +222,7 @@
     }
     parseTarget(text) {
       const match=text.trim().match(/^([A-Za-z_][A-Za-z0-9_]*[$%]?)\s*(?:\((.*)\))?$/i);
-      if(!match) throw new BasicError('NEPAREIZS MAINĪGĀ NOSAUKUMS');
+      if(!match) throw new BasicError('SYNTAX ERROR');
       return { name:upper(match[1]), indices:match[2]===undefined?null:splitOutside(match[2],',').map(x=>this.evaluate(x)) };
     }
     assign(target,value){const t=this.parseTarget(target);if(t.indices)this.setArray(t.name,t.indices,value);else this.setVar(t.name,value);}
@@ -247,14 +247,14 @@
       const m=s.match(/^(\d+)?\s*(?:-|,)\s*(\d+)?$/);
       if(m)return [m[1]?Number(m[1]):null,m[2]?Number(m[2]):null];
       if(/^\d+$/.test(s))return [Number(s),Number(s)];
-      throw new BasicError('NEPAREIZS RINDU DIAPAZONS');
+      throw new BasicError('BAD LINE RANGE');
     }
     async command(text) {
       const source=String(text).trim(); if(!source)return;
-      if(this.running)throw new BasicError('PROGRAMMA JAU TIEK IZPILDĪTA');
+      if(this.running)throw new BasicError('PROGRAM ALREADY RUNNING');
       const line=source.match(/^(\d+)\s*(.*)$/);
       if(line) {
-        const n=Number(line[1]); if(n<1||n>65535)throw new BasicError('NEPAREIZS RINDAS NUMURS');
+        const n=Number(line[1]); if(n<1||n>65535)throw new BasicError('BAD LINE NUMBER');
         if(!line[2]||!line[2].trim())this.lines.delete(n);else this.lines.set(n,line[2].trim());return;
       }
       const m=source.match(/^([A-Za-z]+\$?|\?)(?:\s+(.*))?$/); const word=m?upper(m[1]):''; const rest=m?(m[2]||''):'';
@@ -278,10 +278,10 @@
     }
     renumber(rest) {
       const args=rest.trim()?rest.split(/\s*,\s*/).map(x=>Number(x)):[];
-      if(args.some(x=>!Number.isInteger(x)||x<=0))throw new BasicError('NEPAREIZI PĀRNUMURĒŠANAS PARAMETRI');
+      if(args.some(x=>!Number.isInteger(x)||x<=0))throw new BasicError('SYNTAX ERROR');
       const start=args[0]||10, step=args[1]||10;
       const old=[...this.lines.entries()].sort((a,b)=>a[0]-b[0]);const mapping=new Map(old.map(([n],i)=>[n,start+i*step]));
-      if([...mapping.values()].some(n=>n>65535))throw new BasicError('RINDAS NUMURS PAR LIELU');
+      if([...mapping.values()].some(n=>n>65535))throw new BasicError('BAD LINE NUMBER');
       const result=new Map();
       for(const [oldN,code] of old){
         // Replace only unambiguous line references, not arbitrary numbers in strings or expressions.
@@ -301,7 +301,7 @@
       } else if (spec) {
         const match=spec.match(/^(?:(\d*)\s*,\s*)?(\d*\s*(?:-\s*\d*)?)?(?:\s*,\s*(\d+))?$/);
         if (!match || (!match[1] && !match[2] && !match[3]))
-          throw new BasicError('NEPAREIZI RESEQ PARAMETRI');
+          throw new BasicError('SYNTAX ERROR');
         if (match[1]) newStart=Number(match[1]);
         if (match[3]) step=Number(match[3]);
         const range=(match[2]||'').replace(/\s/g,'');
@@ -314,7 +314,7 @@
       if (!Number.isInteger(step)||step<=0 || (newStart!==null&&(!Number.isInteger(newStart)||newStart<=0)) ||
           (from!==null&&from<=0) || (to!==null&&to<=0) ||
           (from!==null&&to!==null&&from>to))
-        throw new BasicError('NEPAREIZI RESEQ PARAMETRI');
+        throw new BasicError('SYNTAX ERROR');
       const old=[...this.lines.entries()].sort((a,b)=>a[0]-b[0]);
       const selected=old.filter(([n])=>(from===null||n>=from)&&(to===null||n<=to));
       if (!selected.length)return;
@@ -326,7 +326,7 @@
       const selectedNumbers=new Set(mapping.keys());
       const unaffected=new Set(old.filter(([n])=>!selectedNumbers.has(n)).map(([n])=>n));
       if ([...mapping.values()].some(n=>n>65535||unaffected.has(n)))
-        throw new BasicError('RESEQ RINDAS NUMURU KONFLIKTS');
+        throw new BasicError('LINE NUMBER CONFLICT');
       const result=new Map();
       for(const [oldN,code] of old){
         // Preserve references from every line, including lines outside the range.
@@ -338,7 +338,7 @@
       }
       this.lines=result;
     }
-    storage() { const s=this.hooks.storage; if(!s)throw new BasicError('SAGLABĀŠANA NAV PIEEJAMA');return s; }
+    storage() { const s=this.hooks.storage; if(!s)throw new BasicError('DEVICE NOT AVAILABLE');return s; }
     normalizeFile(spec) {return upper(spec.trim().replace(/^DK\d+\s*:\s*/i,'').replace(/^"|"$/g,'').replace(/\.BAS$/i,'')||this.lastSaved).replace(/[^A-Z0-9_\-ĀČĒĢĪĶĻŅŠŪŽ]/g,'_').slice(0,40);}
     save(spec){
       // LP: (as in the book) and LP1: are printer device identifiers, not filenames.
@@ -358,7 +358,7 @@
     }
     load(spec){
       const filename=this.normalizeFile(spec), storage=this.storage(), source=storage.getItem('pecis.basic.file.'+filename);
-      if(source===null)throw new BasicError('FAILS NAV ATRASTS: '+filename);
+      if(source===null)throw new BasicError('FILE NOT FOUND: '+filename);
       this.import(source);
       this.programName=filename;
       const raw=storage.getItem('pecis.basic.meta.'+filename);
@@ -367,9 +367,9 @@
     }
     files(){const s=this.storage(),files=[];for(let i=0;i<s.length;i++){const k=s.key(i);if(k&&k.startsWith('pecis.basic.file.'))files.push(k.slice(17));}this.print(files.sort().join('   ')+'\n');}
     stop(){this.cancel=true;}
-    jumpTo(ctx,line){const lineNum=Math.trunc(this.number(line));if(!ctx.compiled.locations.has(lineNum))throw new BasicError('RINDA '+lineNum+' NAV ATRASTA');ctx.jump=ctx.compiled.locations.get(lineNum);}
+    jumpTo(ctx,line){const lineNum=Math.trunc(this.number(line));if(!ctx.compiled.locations.has(lineNum))throw new BasicError('UNDEFINED LINE');ctx.jump=ctx.compiled.locations.get(lineNum);}
     parseIfStatement(text,ctx){
-      const idx=positionOfWord(text,'THEN');if(idx<0)throw new BasicError('IF BEZ THEN');
+      const idx=positionOfWord(text,'THEN');if(idx<0)throw new BasicError('IF WITHOUT THEN');
       const cond=this.evaluate(text.slice(0,idx));const tail=text.slice(idx+4).trim();
       const pos=positionOfWord(tail,'ELSE');const part=this.truth(cond)?(pos>=0?tail.slice(0,pos):tail):(pos>=0?tail.slice(pos+4):'');
       return part.trim();
@@ -381,7 +381,7 @@
       const cmd=m?upper(m[1]):'';let rest=m?m[2]:src;
       if(cmd==='PRINT'||cmd==='?'){this.printStatement(rest);return;}
       if(cmd==='LET'||this.findEquals(src)>=0 && !/^(IF|FOR|DEF|ON|DATA)\b/i.test(src)){
-        const assign=cmd==='LET'?rest:src,idx=this.findEquals(assign);if(idx<0)throw new BasicError('NEPAREIZA PIEŠĶIRŠANA');
+        const assign=cmd==='LET'?rest:src,idx=this.findEquals(assign);if(idx<0)throw new BasicError('SYNTAX ERROR');
         this.assign(assign.slice(0,idx),this.evaluate(assign.slice(idx+1)));return;
       }
       if(cmd==='IF'){
@@ -391,25 +391,27 @@
         return;
       }
       if(cmd==='GOTO'||cmd==='GO'&&/^TO\s/i.test(rest)){this.jumpTo(ctx,this.evaluate(rest.replace(/^TO\s+/i,'')));return;}
-      if(cmd==='GOSUB'){if(ctx.interactive)throw new BasicError('GOSUB TIKAI PROGRAMMĀ');ctx.callStack.push(ctx.pc+1);this.jumpTo(ctx,this.evaluate(rest));return;}
-      if(cmd==='RETURN'){if(!ctx.callStack?.length)throw new BasicError('RETURN BEZ GOSUB');ctx.jump=ctx.callStack.pop();return;}
+      if(cmd==='GOSUB'){if(ctx.interactive)throw new BasicError('ILLEGAL DIRECT');ctx.callStack.push(ctx.pc+1);this.jumpTo(ctx,this.evaluate(rest));return;}
+      if(cmd==='RETURN'){if(!ctx.callStack?.length)throw new BasicError('RETURN WITHOUT GOSUB');ctx.jump=ctx.callStack.pop();return;}
       if(cmd==='FOR'){
-        if(ctx.interactive)throw new BasicError('FOR IZMANTO PROGRAMMĀ');
-        const eq=this.findEquals(rest);if(eq<0)throw new BasicError('NEPAREIZS FOR');
-        const name=upper(rest.slice(0,eq).trim());if(!/^[A-Z_][A-Z0-9_]*%?$/.test(name))throw new BasicError('NEPAREIZS FOR MAINĪGAIS');
-        const tail=rest.slice(eq+1);const atTo=positionOfWord(tail,'TO');if(atTo<0)throw new BasicError('FOR BEZ TO');
+        if(ctx.interactive)throw new BasicError('ILLEGAL DIRECT');
+        const eq=this.findEquals(rest);if(eq<0)throw new BasicError('SYNTAX ERROR');
+        const name=upper(rest.slice(0,eq).trim());if(!/^[A-Z_][A-Z0-9_]*%?$/.test(name))throw new BasicError('SYNTAX ERROR');
+        const tail=rest.slice(eq+1);const atTo=positionOfWord(tail,'TO');if(atTo<0)throw new BasicError('FOR WITHOUT TO');
         const atStep=positionOfWord(tail,'STEP',atTo+2);
         const begin=this.number(this.evaluate(tail.slice(0,atTo))),end=this.number(this.evaluate(tail.slice(atTo+2,atStep<0?undefined:atStep)));
         const step=atStep<0?1:this.number(this.evaluate(tail.slice(atStep+4)));
-        if(step===0)throw new BasicError('FOR SOLIS NEDRĪKST BŪT 0');this.setVar(name,begin);
+        if(step===0)throw new BasicError('ILLEGAL FUNCTION CALL');this.setVar(name,begin);
         const exit=(step>0?begin>end:begin<end);
-        if(exit){const next=this.findMatchingNext(ctx.compiled.instructions,ctx.pc);ctx.jump=next+1;return;}
+        // Check FOR/NEXT pairing even when the loop executes at least once.
+        const next=this.findMatchingNext(ctx.compiled.instructions,ctx.pc);
+        if(exit){ctx.jump=next+1;return;}
         ctx.loops.push({name,end,step,body:ctx.pc+1});return;
       }
       if(cmd==='NEXT'){
-        const name=upper(rest.trim());if(!ctx.loops.length)throw new BasicError('NEXT BEZ FOR');
+        const name=upper(rest.trim());if(!ctx.loops.length)throw new BasicError('NEXT WITHOUT FOR');
         const idx=name?ctx.loops.findLastIndex(x=>x.name===name):ctx.loops.length-1;
-        if(idx<0)throw new BasicError('NEXT MAINĪGAIS NAV ATRASTS');
+        if(idx<0)throw new BasicError('NEXT WITHOUT FOR');
         const loop=ctx.loops[idx];const current=this.number(this.getVar(loop.name))+loop.step;this.setVar(loop.name,current);
         if(loop.step>0?current<=loop.end:current>=loop.end)ctx.jump=loop.body;
         else ctx.loops.splice(idx,1);
@@ -418,25 +420,25 @@
       if(cmd==='DIM'){
         for(const spec of splitOutside(rest,',')){
           const match=spec.trim().match(/^([A-Za-z_][A-Za-z0-9_]*[$%]?)\s*\((.*)\)$/);
-          if(!match)throw new BasicError('NEPAREIZS DIM');const name=upper(match[1]);
-          if(this.arrays.has(name))throw new BasicError('MASĪVS JAU DEFINĒTS');
+          if(!match)throw new BasicError('SYNTAX ERROR');const name=upper(match[1]);
+          if(this.arrays.has(name))throw new BasicError('REDIMENSIONED ARRAY');
           const dims=splitOutside(match[2],',').map(v=>Math.trunc(this.number(this.evaluate(v))));
-          if(dims.some(n=>n<0||n>50000)||dims.length>4)throw new BasicError('NEPAREIZS MASĪVA IZMĒRS');
+          if(dims.some(n=>n<0||n>50000)||dims.length>4)throw new BasicError('BAD SUBSCRIPT');
           this.arrays.set(name,{dims,values:new Map()});
         }return;
       }
       if(cmd==='DATA')return;
       if(cmd==='READ'){
         for(const target of splitOutside(rest,',')){
-          const item=ctx.compiled.data[ctx.dataIndex++];if(!item)throw new BasicError('PIETRŪKST DATA VĒRTĪBU');
+          const item=ctx.compiled.data[ctx.dataIndex++];if(!item)throw new BasicError('OUT OF DATA');
           const t=this.parseTarget(target);const value=t.name.endsWith('$')?item.value:Number(item.value);
-          if(!t.name.endsWith('$')&&!Number.isFinite(value))throw new BasicError('NEPAREIZA DATA VĒRTĪBA');
+          if(!t.name.endsWith('$')&&!Number.isFinite(value))throw new BasicError('TYPE MISMATCH');
           this.assign(target,value);
         }return;
       }
       if(cmd==='RESTORE'){const line=rest.trim()?this.number(this.evaluate(rest)):null;ctx.dataIndex=line===null?0:((i)=>i<0?ctx.compiled.data.length:i)(ctx.compiled.data.findIndex(x=>x.line>=line));return;}
       if(cmd==='ON'){
-        const match=rest.match(/^(.*?)\s+(GOTO|GOSUB)\s+(.+)$/i);if(!match)throw new BasicError('NEPAREIZS ON');
+        const match=rest.match(/^(.*?)\s+(GOTO|GOSUB)\s+(.+)$/i);if(!match)throw new BasicError('SYNTAX ERROR');
         const index=Math.trunc(this.number(this.evaluate(match[1])));const targets=splitOutside(match[3],',');
         if(index>=1&&index<=targets.length){if(upper(match[2])==='GOSUB')ctx.callStack.push(ctx.pc+1);this.jumpTo(ctx,this.evaluate(targets[index-1]));}return;
       }
@@ -445,26 +447,31 @@
         if(pieces.length>1&&/^\s*"/.test(pieces[0])){prompt=String(this.evaluate(pieces.shift()))+'? ';rest=pieces.join(';');}
         else {const comma=splitOutside(rest,',');if(comma.length>1&&/^\s*"/.test(comma[0])){prompt=String(this.evaluate(comma.shift()))+'? ';rest=comma.join(',');}}
         const targets=splitOutside(rest,',');
-        if(targets.some(t=>!t.trim()))throw new BasicError('NEPAREIZS INPUT');
+        if(targets.some(t=>!t.trim()))throw new BasicError('SYNTAX ERROR');
         const reply=await this.hooks.input(prompt);
-        if(this.cancel)throw new BasicError('PĀRTRAUKTS');
-        const values=splitOutside(reply,',');if(values.length!==targets.length)throw new BasicError('NEPAREIZS IEVADES VĒRTĪBU SKAITS');
-        for(let i=0;i<targets.length;i++){const t=this.parseTarget(targets[i]);const val=t.name.endsWith('$')?unquote(values[i]):Number(values[i].trim());if(!t.name.endsWith('$')&&!Number.isFinite(val))throw new BasicError('GAIDĪTS SKAITLIS');this.assign(targets[i],val);}
+        if(this.cancel)throw new BasicError('BREAK');
+        const values=splitOutside(reply,',');if(values.length!==targets.length)throw new BasicError('REDO FROM START');
+        for(let i=0;i<targets.length;i++){const t=this.parseTarget(targets[i]);const val=t.name.endsWith('$')?unquote(values[i]):Number(values[i].trim());if(!t.name.endsWith('$')&&!Number.isFinite(val))throw new BasicError('TYPE MISMATCH');this.assign(targets[i],val);}
         return;
       }
-      if(cmd==='END'||cmd==='STOP'){ctx.stopped=true;return;}
+      if(cmd==='END'){ctx.stopped=true;return;}
+      if(cmd==='STOP'){
+        ctx.stopped=true;
+        if(!ctx.interactive)this.print('STOP AT LINE '+ctx.compiled.instructions[ctx.pc].line+'\n');
+        return;
+      }
       if(cmd==='CLS'||cmd==='HOME'){this.hooks.clear();return;}
       if(cmd==='RANDOMIZE'){this.randomSeed=Date.now();return;}
       if(cmd==='BEEP'){this.print('\u0007');return;}
-      throw new BasicError('NEZINĀMA KOMANDA: '+(cmd||src.split(/\s+/)[0]));
+      throw new BasicError('SYNTAX ERROR');
     }
-    findMatchingNext(instructions,pc){let depth=0;for(let i=pc+1;i<instructions.length;i++){if(/^FOR\s/i.test(instructions[i].statement))depth++;if(/^NEXT(?:\s|$)/i.test(instructions[i].statement)){if(depth===0)return i;depth--;}}throw new BasicError('FOR BEZ NEXT');}
+    findMatchingNext(instructions,pc){let depth=0;for(let i=pc+1;i<instructions.length;i++){if(/^FOR\s/i.test(instructions[i].statement))depth++;if(/^NEXT(?:\s|$)/i.test(instructions[i].statement)){if(depth===0)return i;depth--;}}throw new BasicError('FOR WITHOUT NEXT');}
     async run(rest='',showHeader=false) {
-      if(this.running)throw new BasicError('PROGRAMMA JAU TIEK IZPILDĪTA');
+      if(this.running)throw new BasicError('PROGRAM ALREADY RUNNING');
       const compiled=this.getCompiled();this.resetState();this.cancel=false;
       const ctx={pc:0,jump:null,stopped:false,interactive:false,compiled,loops:[],callStack:[],dataIndex:0};
       if(rest.trim()){
-        const arg=rest.trim();if(!/^\d+$/.test(arg))throw new BasicError('NEPAREIZS RUN PARAMETRS');
+        const arg=rest.trim();if(!/^\d+$/.test(arg))throw new BasicError('SYNTAX ERROR');
         if(!compiled.locations.has(Number(arg)))throw new BasicError('RINDA NAV ATRASTA');ctx.pc=compiled.locations.get(Number(arg));
       }
       let steps=0,currentLine=null;
@@ -472,8 +479,8 @@
       try {
         if(showHeader)this.print('\n'+this.listHeader()+'\n\n');
         while(ctx.pc<compiled.instructions.length&&!ctx.stopped) {
-          if(this.cancel)throw new BasicError('PĀRTRAUKTS');
-          if(++steps>this.stepLimit)throw new BasicError('PĀRSNIEGTS IZPILDES SOĻU LIMITS');
+          if(this.cancel)throw new BasicError('BREAK');
+          if(++steps>this.stepLimit)throw new BasicError('OUT OF TIME');
           const ins=compiled.instructions[ctx.pc];currentLine=ins.line;ctx.jump=null;
           try {await this.execute(ins.statement,ctx);} catch(err){if(err instanceof BasicError&&err.line===null)err.line=currentLine;throw err;}
           ctx.pc=ctx.jump!==null?ctx.jump:ctx.pc+1;
