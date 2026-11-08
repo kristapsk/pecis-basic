@@ -478,5 +478,27 @@ async function check(name, program, match, inputs=[]) {
  await b.command('LOAD DK1:NOMETA');
  assert.equal(b.programCreated,recovered);
  console.log('PASS VFS creation timestamps across sessions, rewrites and migration');
+ // PRINT # supports BASIC-11 comma separators and empty PRINT #F.
+ await b.command('NEW PRINTFILE');
+ await b.command('10 F=4');
+ await b.command('20 OPEN "DK1:PRINTCOMMA" FOR OUTPUT AS FILE F');
+ await b.command('30 N=3');
+ await b.command('40 S¤="*"');
+ await b.command('50 PRINT #F,TAB(5); \\ FOR I=1 TO N \\ PRINT #F,S¤; \\ NEXT I');
+ await b.command('60 PRINT #F');
+ await b.command('70 PRINT #F,S¤;TAB(8);S¤');
+ await b.command('80 PRINT #F');
+ await b.command('90 CLOSE F');
+ output='';await b.command('RUNNH');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:PRINTCOMMA.DAT'), '    ***\n*      *\n\n');
+ await b.command('NEW PRINTCOLON');
+ await b.command('10 F=4');
+ await b.command('20 OPEN "DK1:PRINTCOLON" FOR OUTPUT AS FILE F');
+ await b.command('30 PRINT #F: "COLON"');
+ await b.command('40 PRINT #F; "SEMICOLON"');
+ await b.command('50 CLOSE F');
+ output='';await b.command('RUNNH');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:PRINTCOLON.DAT'),'COLON\nSEMICOLON\n');
+ console.log('PASS BASIC-11 PRINT # comma and empty output');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

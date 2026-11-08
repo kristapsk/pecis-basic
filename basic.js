@@ -58,7 +58,7 @@
       } else if (ch === '"') { quote = '"'; normalized += ch; }
       else if (ch === '«') { quote = '»'; normalized += '"'; }
       // In PRINT #4: and INPUT #4: the colon belongs to the file command.
-      else if (ch === ':' && /(?:^|:)\s*(?:PRINT|INPUT)\s*#\s*\d+\s*$/i.test(normalized)) normalized += ';';
+      else if (ch === ':' && /(?:^|:)\s*(?:PRINT|INPUT)\s*#\s*(?:[A-Z_][A-Z0-9_]*|\d+)\s*$/i.test(normalized)) normalized += ';';
       else normalized += ch === '\\' ? ':' : ch;
     }
     // A numeric THEN target is a jump, so statements after \ run only
@@ -624,13 +624,15 @@
       this.fileChannels.set(number,{path,mode,printer,lines,index:0,values:[],chunks:[],pending:''});
     }
     printFile(spec) {
-      const match=spec.match(/^#\s*([^;:]+)\s*[;:]\s*([\s\S]*)$/);
+      // BASIC-11 accepts PRINT #F,expr, PRINT #F;expr, PRINT #F:expr
+      // and PRINT #F with no arguments (a blank line / flush).
+      const match=spec.match(/^#\s*([^;:,\s]+)\s*(?:([;:,])\s*([\s\S]*))?$/);
       if(!match)throw new BasicError('SYNTAX ERROR');
       const channel=this.fileChannel(match[1],'OUTPUT');
       const output=this.outputBuffer,print=this.hooks.print;
       this.outputBuffer=channel.pending;
       this.hooks.print=text=>channel.chunks.push(text);
-      try {this.printStatement(match[2]);channel.pending=this.outputBuffer;}
+      try {this.printStatement(match[3]??'');channel.pending=this.outputBuffer;}
       finally {this.outputBuffer=output;this.hooks.print=print;}
     }
     inputFile(spec) {
