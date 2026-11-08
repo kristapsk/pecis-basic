@@ -298,8 +298,8 @@
       const result=new Map();
       for(const [oldN,code] of old){
         // Replace only unambiguous line references, not arbitrary numbers in strings or expressions.
-        let updated=code.replace(/\b(GOTO|GOSUB|THEN|ELSE|RESTORE)\s+(\d+)\b/gi,(m,word,n)=>mapping.has(Number(n))?word+' '+mapping.get(Number(n)):m);
-        updated=updated.replace(/\b(ON\s+[^:]*?\s+GOTO\s+)([\d\s,]+)\b/gi,(_,prefix,nums)=>prefix+nums.replace(/\d+/g,x=>mapping.has(Number(x))?mapping.get(Number(x)):x));
+        let updated=code.replace(/\b(GOTO|GO\s+TO|GOSUB|THEN|ELSE|RESTORE)\s+(\d+)\b/gi,(m,word,n)=>mapping.has(Number(n))?word+' '+mapping.get(Number(n)):m);
+        updated=updated.replace(/\b(ON\s+[^:]*?\s+(?:GOTO|GO\s+TO)\s+)([\d\s,]+)\b/gi,(_,prefix,nums)=>prefix+nums.replace(/\d+/g,x=>mapping.has(Number(x))?mapping.get(Number(x)):x));
         result.set(mapping.get(oldN),updated);
       }
       this.lines=result;this.print('RINDAS PĀRNUMURĒTAS\n');
@@ -343,9 +343,9 @@
       const result=new Map();
       for(const [oldN,code] of old){
         // Preserve references from every line, including lines outside the range.
-        let updated=code.replace(/\b(GOTO|GOSUB|THEN|ELSE|RESTORE)\s+(\d+)\b/gi,
+        let updated=code.replace(/\b(GOTO|GO\s+TO|GOSUB|THEN|ELSE|RESTORE)\s+(\d+)\b/gi,
           (m,word,n)=>mapping.has(Number(n))?word+' '+mapping.get(Number(n)):m);
-        updated=updated.replace(/\b(ON\s+[^:]*?\s+GOTO\s+)([\d\s,]+)\b/gi,
+        updated=updated.replace(/\b(ON\s+[^:]*?\s+(?:GOTO|GO\s+TO)\s+)([\d\s,]+)\b/gi,
           (_,prefix,nums)=>prefix+nums.replace(/\d+/g,x=>mapping.has(Number(x))?mapping.get(Number(x)):x));
         result.set(mapping.get(oldN)??oldN,updated);
       }
@@ -451,7 +451,7 @@
       }
       if(cmd==='RESTORE'){const line=rest.trim()?this.number(this.evaluate(rest)):null;ctx.dataIndex=line===null?0:((i)=>i<0?ctx.compiled.data.length:i)(ctx.compiled.data.findIndex(x=>x.line>=line));return;}
       if(cmd==='ON'){
-        const match=rest.match(/^(.*?)\s+(GOTO|GOSUB)\s+(.+)$/i);if(!match)throw new BasicError('SYNTAX ERROR');
+        const match=rest.match(/^(.*?)\s+(GOTO|GO\s+TO|GOSUB)\s+(.+)$/i);if(!match)throw new BasicError('SYNTAX ERROR');
         const index=Math.trunc(this.number(this.evaluate(match[1])));const targets=splitOutside(match[3],',');
         if(index>=1&&index<=targets.length){if(upper(match[2])==='GOSUB')ctx.callStack.push(ctx.pc+1);this.jumpTo(ctx,this.evaluate(targets[index-1]));}return;
       }

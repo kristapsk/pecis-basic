@@ -194,5 +194,27 @@ async function check(name, program, match, inputs=[]) {
  output='';await b.command('RUNNH');
  assert.notEqual(b.getVar('A'),first);
  console.log('PASS bare RND and parenthesized RND');
+ // ON accepts the BASIC-11 GO TO spelling, including computed branches.
+ await check('ON GO TO branch 2',
+   '10 R=2\n20 ON R GO TO 40,60,80\n30 PRINT "BAD":END\n40 PRINT "FIRST":END\n60 PRINT "SECOND":END\n80 PRINT "THIRD":END', /SECOND/);
+ assert.doesNotMatch(output,/FIRST|THIRD|BAD/);
+ await check('ON GO TO branch 1',
+   '10 R=1\n20 ON R GO TO 40,60\n30 PRINT "BAD":END\n40 PRINT "FIRST":END\n60 PRINT "SECOND":END', /FIRST/);
+ assert.doesNotMatch(output,/SECOND|BAD/);
+ await check('ON GOTO remains supported',
+   '10 R=2\n20 ON R GOTO 40,60\n30 END\n40 PRINT "BAD":END\n60 PRINT "OK":END', /OK/);
+ // Both renumbering commands must fix ON GO TO and ordinary GO TO references.
+ await b.command('NEW TARGETS');
+ await b.command('10 ON R GO TO 50,80');
+ await b.command('20 GO TO 80');
+ await b.command('50 PRINT "ONE"');
+ await b.command('80 END');
+ await b.command('RENUM 100,10');
+ assert.match(b.list(),/^100 ON R GO TO 120,130$/m);
+ assert.match(b.list(),/^110 GO TO 130$/m);
+ await b.command('RESEQ 10');
+ assert.match(b.list(),/^10 ON R GO TO 30,40$/m);
+ assert.match(b.list(),/^20 GO TO 40$/m);
+ console.log('PASS ON GO TO, RENUM and RESEQ targets');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
