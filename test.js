@@ -221,9 +221,9 @@ async function check(name, program, match, inputs=[]) {
     '10 A=7 \\ REM1111\n20 PRINT A', /7/);
   await check('REM without space at line start',
     '10 REM4444444444\n20 PRINT "OK"', /OK/);
-  await check('REM consumes rest of statement line',
+  await check('REM ends at next backslash',
     '10 PRINT "BEFORE" \\ REM123 \\ PRINT "AFTER"\n20 END', /BEFORE/);
-  assert.doesNotMatch(output,/AFTER/);
+  assert.match(output,/AFTER/);
   await check('REM with normal space still works',
     '10 REM COMMENT\n20 PRINT "STILL OK"', /STILL OK/);
   console.log('PASS BASIC-11 REM without whitespace');
@@ -513,5 +513,16 @@ async function check(name, program, match, inputs=[]) {
  assert.match(output,/    \*\*\*\n\*      \*\n\n/);
  await assert.rejects(b.command('PRINT #3,"NOT OPEN"'),/FILE NOT OPEN/);
  console.log('PASS BASIC-11 terminal output channel zero');
+ // BASIC-11 REM ends at the next backslash, so later commands still run.
+ await b.command('NEW REMSPLIT');
+ await b.command('10 X=1 \\ REM COMMENT \\ X=X+2');
+ await b.command('20 REM1111 NO SPACE \\ X=X+4');
+ await b.command('30 REM COMMENT WITHOUT SEPARATOR X=999');
+ await b.command('40 PRINT X');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^7\n/);
+ assert.equal(b.getVar('X'),7);
+ assert.deepEqual(require('./basic.js').splitStatements('REM FIRST \\ X=2'),['REM FIRST','X=2']);
+ console.log('PASS BASIC-11 REM with backslash-separated statements');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

@@ -69,7 +69,8 @@
       if (/^IF\b.*\bTHEN\s+\d+$/i.test(item)) {
         results.push(item); continue;
       }
-      if (/^(?:IF\s|REM|')/i.test(item)) {
+      // REM ends at the next backslash, not at the end of the source line.
+      if (/^(?:IF\s|')/i.test(item)) {
         results.push(tokens.slice(i).join(':').trim()); break;
       }
       if (item) results.push(item);
