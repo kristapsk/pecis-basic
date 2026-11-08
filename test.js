@@ -155,5 +155,16 @@ async function check(name, program, match, inputs=[]) {
  await b.command('10 PRINT 1/0');
  await assert.rejects(b.command('RUNNH'),e=>e instanceof BasicError && e.message==='DIVISION BY ZERO' && e.line===10);
  console.log('PASS BASIC-11 English errors and STOP');
+ // Backslash is a BASIC-11 statement separator, even with empty fields.
+ await check('backslash: statement and REM',
+   '10 M=70 \\ \\ REM MINIMUM SALARY\n20 A=M+2 \\ PRINT A\n30 END', /72/);
+ assert.match(b.list(),/10 M=70 \\/);
+ await check('backslash: multiple statements',
+   '10 A=1 \\ B=2 \\ C=A+B\n20 PRINT C', /3/);
+ await check('backslash: quoted string',
+   '10 PRINT "A\\B" \\ PRINT "OK"', /A\\B\nOK/);
+ await check('backslash: IF branch',
+   '10 A=1\n20 IF A=1 THEN PRINT "YES" \\ PRINT "OK"\n30 END', /YES\nOK/);
+ console.log('PASS BASIC-11 backslash statement separators');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

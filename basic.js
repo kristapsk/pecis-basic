@@ -39,8 +39,19 @@
     return -1;
   }
   function splitStatements(source) {
-    // IF owns everything after THEN, including colon-separated branch statements.
-    const tokens = splitOutside(source, ':'); const results = [];
+    // BASIC-11 uses backslash as a statement separator (like the existing colon).
+    // Do not split backslashes inside quoted strings, including doubled quotes.
+    let normalized = '', quoted = false;
+    for (let i = 0; i < source.length; i++) {
+      const ch = source[i];
+      if (ch === '"') {
+        if (quoted && source[i + 1] === '"') { normalized += '""'; i++; continue; }
+        quoted = !quoted;
+      }
+      normalized += ch === '\\' && !quoted ? ':' : ch;
+    }
+    // IF owns everything after THEN, including separated branch statements.
+    const tokens = splitOutside(normalized, ':'); const results = [];
     for (let i = 0; i < tokens.length; i++) {
       const item = tokens[i].trim();
       if (/^(?:IF\s|REM(?:\s|$)|')/i.test(item)) {
