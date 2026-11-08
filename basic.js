@@ -54,7 +54,7 @@
     const tokens = splitOutside(normalized, ':'); const results = [];
     for (let i = 0; i < tokens.length; i++) {
       const item = tokens[i].trim();
-      if (/^(?:IF\s|REM(?:\s|$)|')/i.test(item)) {
+      if (/^(?:IF\s|REM|')/i.test(item)) {
         results.push(tokens.slice(i).join(':').trim()); break;
       }
       if (item) results.push(item);
@@ -389,7 +389,7 @@
     }
     async execute(statement,ctx) {
       const src=statement.trim();if(!src)return;
-      if(/^REM(?:\s|$)/i.test(src)||src.startsWith("'"))return;
+      if(/^REM/i.test(src)||src.startsWith("'"))return;
       const m=src.match(/^([A-Za-z]+\$?|\?)(?=\W|$)\s*(.*)$/s);
       const cmd=m?upper(m[1]):'';let rest=m?m[2]:src;
       if(cmd==='PRINT'||cmd==='?'){this.printStatement(rest);return;}

@@ -216,5 +216,16 @@ async function check(name, program, match, inputs=[]) {
  assert.match(b.list(),/^10 ON R GO TO 30,40$/m);
  assert.match(b.list(),/^20 GO TO 40$/m);
  console.log('PASS ON GO TO, RENUM and RESEQ targets');
+  // BASIC-11 accepts REM without whitespace, including comments after backslashes.
+  await check('REM without space after separator',
+    '10 A=7 \\ REM1111\n20 PRINT A', /7/);
+  await check('REM without space at line start',
+    '10 REM4444444444\n20 PRINT "OK"', /OK/);
+  await check('REM consumes rest of statement line',
+    '10 PRINT "BEFORE" \\ REM123 \\ PRINT "AFTER"\n20 END', /BEFORE/);
+  assert.doesNotMatch(output,/AFTER/);
+  await check('REM with normal space still works',
+    '10 REM COMMENT\n20 PRINT "STILL OK"', /STILL OK/);
+  console.log('PASS BASIC-11 REM without whitespace');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
