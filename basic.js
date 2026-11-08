@@ -59,10 +59,14 @@
       else if (ch === '«') { quote = '»'; normalized += '"'; }
       else normalized += ch === '\\' ? ':' : ch;
     }
-    // IF owns everything after THEN, including separated branch statements.
+    // A numeric THEN target is a jump, so statements after \ run only
+    // when the condition is false. THEN PRINT ... \ PRINT ... stays one branch.
     const tokens = splitOutside(normalized, ':'); const results = [];
     for (let i = 0; i < tokens.length; i++) {
       const item = tokens[i].trim();
+      if (/^IF\b.*\bTHEN\s+\d+$/i.test(item)) {
+        results.push(item); continue;
+      }
       if (/^(?:IF\s|REM|')/i.test(item)) {
         results.push(tokens.slice(i).join(':').trim()); break;
       }

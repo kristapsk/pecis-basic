@@ -339,6 +339,16 @@ async function check(name, program, match, inputs=[]) {
  output='';await b.command('RUNNH');
  assert.match(output,/^3\n/); // RUN must reset definitions so they can be defined again.
  console.log('PASS BASIC-11 DAT$, CLK$ and DEF FN');
+ // Numeric THEN jump must leave later backslash statements outside IF.
+ const conditional='10 DATA "OZOLS","MEZS","LIEPA","PARKS"\n'+
+   '20 FOR I=1 TO 2 \\ READ R¤(I),G¤(I)\n'+
+   '30 A¤=" KOKS" \\ IF I<>1 THEN 40 \\ A¤=" PIRMAIS KOKS"\n'+
+   '40 PRINT R¤(I);A¤\n50 NEXT I\n60 END';
+ await check('IF THEN line target followed by backslash assignment',
+   conditional, /OZOLS PIRMAIS KOKS\nLIEPA KOKS\n/);
+ await check('IF THEN statement branch still owns separators',
+   '10 I=1\n20 IF I=1 THEN PRINT "YES" \\ PRINT "ALSO"\n30 END', /YES\nALSO/);
+ console.log('PASS IF THEN numeric jump with backslash continuation');
   // SUB edits the LISTed line with an arbitrary delimiter (also without a space).
   await b.command('NEW SUBTEST');
   await b.command('110 G¤=V¤+G¤');
