@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const {Interpreter,BasicError}=require('./basic.js');
 const store=new Map();
-const storage={setItem:(k,v)=>store.set(k,v),getItem:k=>store.has(k)?store.get(k):null,key:i=>[...store.keys()][i],get length(){return store.size;}};
+const storage={setItem:(k,v)=>store.set(k,v),getItem:k=>store.has(k)?store.get(k):null,removeItem:k=>store.delete(k),key:i=>[...store.keys()][i],get length(){return store.size;}};
 let output='';let answers=[];
 const b=new Interpreter({print:s=>output+=s,input:async()=>answers.shift(),clear:()=>output='',storage});
 async function check(name, program, match, inputs=[]) {
@@ -513,6 +513,36 @@ async function check(name, program, match, inputs=[]) {
  assert.match(output,/    \*\*\*\n\*      \*\n\n/);
  await assert.rejects(b.command('PRINT #3,"NOT OPEN"'),/FILE NOT OPEN/);
  console.log('PASS BASIC-11 terminal output channel zero');
+ // KILL deletes a data file and its metadata, with .DAT as the default.
+ await b.command('NEW KILLTEST');
+ await b.command('OPEN "DK1:TRASH" FOR OUTPUT AS FILE 4');
+ await b.command('PRINT #4,"TEMP"');
+ await b.command('CLOSE 4');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:TRASH.DAT'),'TEMP\n');
+ assert.ok(storage.getItem('pecis.basic.vfsmeta.DK1:TRASH.DAT'));
+ await b.command('KILL "DK1:TRASH"');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:TRASH.DAT'),null);
+ assert.equal(storage.getItem('pecis.basic.vfsmeta.DK1:TRASH.DAT'),null);
+ await assert.rejects(b.command('KILL "DK1:TRASH"'),/FILE NOT FOUND/);
+ // Explicit .BAS can delete a program; legacy keys must not resurrect it.
+ storage.setItem('pecis.basic.file.KILLLEGACY','10 END');
+ storage.setItem('pecis.basic.meta.KILLLEGACY',JSON.stringify({created:'1986-01-01T00:00:00.000Z'}));
+ await b.command('KILL "DK1:KILLLEGACY.BAS"');
+ assert.equal(storage.getItem('pecis.basic.file.KILLLEGACY'),null);
+ assert.equal(storage.getItem('pecis.basic.meta.KILLLEGACY'),null);
+ await assert.rejects(b.command('LOAD DK1:KILLLEGACY'),/FILE NOT FOUND/);
+ await b.command('OPEN "DK1:BUSY" FOR OUTPUT AS FILE 1');
+ await assert.rejects(b.command('KILL "DK1:BUSY.DAT"'),/FILE ALREADY OPEN/);
+ await b.command('CLOSE 1');
+ await b.command('KILL "DK1:BUSY.DAT"');
+ // KILL also works in a numbered program statement.
+ await b.command('OPEN "DK1:NUMBERED" FOR OUTPUT AS FILE 1');
+ await b.command('CLOSE 1');
+ await b.command('NEW KILLRUN');
+ await b.command('10 KILL "DK1:NUMBERED.DAT"');
+ output='';await b.command('RUNNH');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:NUMBERED.DAT'),null);
+ console.log('PASS BASIC-11 KILL deletes VFS data, metadata and legacy entries');
  // BASIC-11 REM ends at the next backslash, so later commands still run.
  await b.command('NEW REMSPLIT');
  await b.command('10 X=1 \\ REM COMMENT \\ X=X+2');

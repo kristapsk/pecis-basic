@@ -398,6 +398,7 @@
       if(word==='RENUM'){this.renumber(rest);return;}
       if(word==='RESEQ'){this.resequence(rest);return;}
       if(word==='SAVE'){this.save(rest);return;}
+      if(word==='KILL'){this.killFile(rest);return;}
       if(word==='LOAD'||word==='OLD'){this.load(rest);return;}
       if(word==='FILES'||word==='DIR'){this.files();return;}
       if(word==='BYE'||word==='EXIT'){this.hooks.exit();return;}
@@ -548,6 +549,27 @@
       this.virtualFiles.set(key,String(value));
       this.hooks.storage?.setItem(key,String(value));
     }
+    killFile(spec) {
+      // BASIC-11 KILL deletes a named file, defaulting to .DAT.
+      // Delete metadata and legacy SAVE keys so deleted files cannot reappear.
+      const filename=this.evaluate(spec.trim());
+      if(typeof filename!=='string'||!filename.trim())throw new BasicError('BAD FILE NAME');
+      const path=this.filePath(filename,'DAT');
+      if([...this.fileChannels.values()].some(channel=>channel.path===path))
+        throw new BasicError('FILE ALREADY OPEN');
+      const key='pecis.basic.vfs.'+path,metaKey='pecis.basic.vfsmeta.'+path;
+      const legacy=path.match(/^DK1:([^.]+)\.BAS$/);
+      const oldKey=legacy?'pecis.basic.file.'+legacy[1]:null;
+      const oldMetaKey=legacy?'pecis.basic.meta.'+legacy[1]:null;
+      const storage=this.hooks.storage;
+      const exists=this.virtualFiles.has(key)||(storage?.getItem(key)??null)!==null
+        ||(oldKey!==null&&(storage?.getItem(oldKey)??null)!==null);
+      if(!exists)throw new BasicError('FILE NOT FOUND: '+path);
+      if(storage&&typeof storage.removeItem!=='function')throw new BasicError('DEVICE NOT AVAILABLE');
+      this.virtualFiles.delete(key);
+      this.virtualFiles.delete(metaKey);
+      for(const k of [key,metaKey,oldKey,oldMetaKey])if(k)storage?.removeItem(k);
+    }
     save(spec){
       // LP: (as in the book) and LP1: are printer device identifiers, not filenames.
       const printer=String(spec).trim().match(/^LP(1)?\s*:\s*$/i);
@@ -681,6 +703,7 @@
       if(/^REM/i.test(src)||src.startsWith("'"))return;
       const m=src.match(/^([A-Za-z]+\$?|\?)(?=\W|$)\s*(.*)$/s);
       const cmd=m?upper(m[1]):'';let rest=m?m[2]:src;
+      if(cmd==='KILL'){this.killFile(rest);return;}
       if(cmd==='OPEN'){this.openFile(rest);return;}
       if(cmd==='CLOSE'){this.closeFiles(rest);return;}
       if(cmd==='PRINT'&&/^#/.test(rest)){this.printFile(rest);return;}
