@@ -201,7 +201,7 @@
         + '-' + pad(date.getFullYear() % 100) + '   ' + pad(date.getHours())
         + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
     }
-    resetState() { this.vars = new Map(); this.arrays = new Map(); this.userFunctions = new Map(); this.functionDepth = 0; this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0; this.fileChannels = new Map(); }
+    resetState() { this.vars = new Map(); this.arrays = new Map(); this.userFunctions = new Map(); this.functionDepth = 0; this.loops = []; this.returns = []; this.dataAt = 0; this.outputBuffer = ''; this.randomSeed = 0x12345678; this.fileChannels = new Map(); }
     number(x) { const n = Number(x); if (!Number.isFinite(n)) throw new BasicError('TYPE MISMATCH'); return n; }
     truth(x) { return typeof x === 'string' ? x.length > 0 : this.number(x) !== 0; }
     getVar(name) { return this.vars.has(name) ? this.vars.get(name) : name.endsWith('$') ? '' : 0; }
@@ -276,7 +276,12 @@
         'SGN':()=>Math.sign(n(0)), 'SQR':()=>Math.sqrt(n(0)), 'SIN':()=>Math.sin(n(0)),
         'COS':()=>Math.cos(n(0)), 'TAN':()=>Math.tan(n(0)), 'ATN':()=>Math.atan(n(0)),
         'LOG':()=>Math.log(n(0)), 'EXP':()=>Math.exp(n(0)),
-        'RND':()=>Math.random(), 'LEN':()=>s(0).length,
+        'RND':()=>{
+          // BASIC-11 ignores its optional numeric argument. RUN resets the sequence.
+          if(args.length===1)n(0);
+          this.randomSeed=(Math.imul(1664525,this.randomSeed)+1013904223)>>>0;
+          return (this.randomSeed+0.5)/4294967296;
+        }, 'LEN':()=>s(0).length,
         'CLK$':()=>{
           if(args.length)throw new BasicError('ILLEGAL FUNCTION CALL');
           const d=new Date(),pad=x=>String(x).padStart(2,'0');
@@ -299,9 +304,15 @@
         },
         'ASC':()=>s(0).length?s(0).charCodeAt(0):0,
         'CHR$':()=>String.fromCharCode(n(0)), 'STR$':()=>formatNum(n(0)),
-        'VAL':()=>{ const m=s(0).match(/^\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?/); return m?Number(m[0]):0; },
+        'VAL':()=>{
+          if(typeof args[0]!=='string')throw new BasicError('TYPE MISMATCH');
+          const text=args[0].trim();
+          if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]?\d+)?$/.test(text))
+            throw new BasicError('ILLEGAL FUNCTION CALL');
+          return this.number(Number(text));
+        },
         'LEFT$':()=>s(0).slice(0,Math.max(0,Math.trunc(n(1)))),
-        'RIGHT$':()=>s(0).slice(-Math.max(0,Math.trunc(n(1)))) || '',
+        'RIGHT$':()=>{const count=Math.max(0,Math.trunc(n(1)));return count?s(0).slice(-count):'';},
         'MID$':()=>s(0).slice(Math.max(0,Math.trunc(n(1))-1), args.length===3?Math.max(0,Math.trunc(n(1))-1)+Math.max(0,Math.trunc(n(2))):undefined),
         // BASIC-11 SEG$(text, first, last): inclusive, 1-based positions.
         // The tokenizer already maps the historical SEG¤ spelling to SEG$.
@@ -315,7 +326,17 @@
         },
         'TAB':()=>({ spacing:'TAB', value:n(0) }), 'SPC':()=>({ spacing:'SPC', value:n(0) })
       };
+      // Validate built-in functions before evaluating their implementations.
+      const arities={
+        ABS:[1],INT:[1],FIX:[1],SGN:[1],SQR:[1],SIN:[1],COS:[1],TAN:[1],
+        ATN:[1],LOG:[1],EXP:[1],RND:[0,1],LEN:[1], 'CLK$':[0], 'DAT$':[0],
+        POS:[3],ASC:[1], 'CHR$':[1], 'STR$':[1],VAL:[1],
+        'LEFT$':[2], 'RIGHT$':[2], 'MID$':[2,3], 'SEG$':[3],TAB:[1],SPC:[1]
+      };
       if (Object.prototype.hasOwnProperty.call(funcs,name)) {
+        if(!arities[name].includes(args.length))throw new BasicError('ILLEGAL FUNCTION CALL');
+        if((name==='TAB'||name==='SPC')&&this.number(args[0])<0)
+          throw new BasicError('ILLEGAL FUNCTION CALL');
         const result=funcs[name](); if (typeof result === 'number' && !Number.isFinite(result)) throw new BasicError('ILLEGAL FUNCTION CALL'); return result;
       }
       return this.getArray(name,args);
@@ -327,7 +348,9 @@
     flushOutput() { if (this.outputBuffer) { this.print(this.outputBuffer+'\n'); this.outputBuffer=''; } }
     outputPart(value) {
       if (value && typeof value==='object' && value.spacing) {
-        const pos=this.outputBuffer.length; const count=value.spacing==='SPC'?Math.max(0,Math.trunc(value.value)):Math.max(0,Math.trunc(value.value)-1-pos);
+        // BASIC-11 TAB uses zero-based columns; it never moves the cursor backward.
+        const pos=this.outputBuffer.length;
+        const count=value.spacing==='SPC'?Math.trunc(value.value):Math.max(0,Math.trunc(value.value)-pos);
         this.outputBuffer+=' '.repeat(Math.min(200,count)); return;
       }
       this.outputBuffer += typeof value === 'number' ? formatNum(value) : String(value);
@@ -818,7 +841,7 @@
         return;
       }
       if(cmd==='CLS'||cmd==='HOME'){this.hooks.clear();return;}
-      if(cmd==='RANDOMIZE'){this.randomSeed=Date.now();return;}
+      if(cmd==='RANDOMIZE'){this.randomSeed=(Date.now()^(Math.random()*4294967296))>>>0;return;}
       if(cmd==='BEEP'){this.print('\u0007');return;}
       throw new BasicError('SYNTAX ERROR');
     }

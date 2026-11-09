@@ -192,7 +192,7 @@ async function check(name, program, match, inputs=[]) {
  }
  const first=b.getVar('A');
  output='';await b.command('RUNNH');
- assert.notEqual(b.getVar('A'),first);
+ assert.equal(b.getVar('A'),first);
  console.log('PASS bare RND and parenthesized RND');
  // ON accepts the BASIC-11 GO TO spelling, including computed branches.
  await check('ON GO TO branch 2',
@@ -490,7 +490,7 @@ async function check(name, program, match, inputs=[]) {
  await b.command('80 PRINT #F');
  await b.command('90 CLOSE F');
  output='';await b.command('RUNNH');
- assert.equal(storage.getItem('pecis.basic.vfs.DK1:PRINTCOMMA.DAT'), '    ***\n*      *\n\n');
+ assert.equal(storage.getItem('pecis.basic.vfs.DK1:PRINTCOMMA.DAT'), '     ***\n*       *\n\n');
  await b.command('NEW PRINTCOLON');
  await b.command('10 F=4');
  await b.command('20 OPEN "DK1:PRINTCOLON" FOR OUTPUT AS FILE F');
@@ -510,7 +510,7 @@ async function check(name, program, match, inputs=[]) {
  await b.command('60 PRINT #F,S¤;TAB(8);S¤');
  await b.command('70 PRINT #F');
  output='';await b.command('RUNNH');
- assert.match(output,/    \*\*\*\n\*      \*\n\n/);
+ assert.match(output,/     \*\*\*\n\*       \*\n\n/);
  await assert.rejects(b.command('PRINT #3,"NOT OPEN"'),/FILE NOT OPEN/);
  console.log('PASS BASIC-11 terminal output channel zero');
  // KILL deletes a data file and its metadata, with .DAT as the default.
@@ -554,6 +554,32 @@ async function check(name, program, match, inputs=[]) {
  assert.equal(b.getVar('X'),7);
  assert.deepEqual(require('./basic.js').splitStatements('REM FIRST \\ X=2'),['REM FIRST','X=2']);
  console.log('PASS BASIC-11 REM with backslash-separated statements');
+ // Built-in function compatibility and argument validation.
+ assert.equal(b.evaluate('RIGHT$("ABCD",0)'),'');
+ assert.equal(b.evaluate('RIGHT$("ABCD",2)'),'CD');
+ assert.equal(b.evaluate('VAL("-12.5E1")'),-125);
+ for(const expr of ['ABS(1,2)','RND(1,2)','LEFT$("ABC")','MID$("ABC")',
+                    'SEG$("ABC",1)','CLK$(1)','SPC()','VAL("12ABC")','VAL("ABC")']) {
+   assert.throws(()=>b.evaluate(expr),BasicError,expr);
+ }
+ for(const expr of ['TAB(-1)','SPC(-2)']) assert.throws(()=>b.evaluate(expr),BasicError,expr);
+ await b.command('NEW FUNCTIONCHECK');
+ await b.command('10 PRINT "A";TAB(4);"B"');
+ await b.command('20 PRINT "A";TAB(0);"B"');
+ await b.command('30 PRINT "A";SPC(2);"B"');
+ output='';await b.command('RUNNH');
+ assert.match(output,/^A   B\nAB\nA  B\n/);
+ await b.command('NEW RNDRESTART');
+ await b.command('10 A=RND');
+ await b.command('20 B=RND(0)');
+ output='';await b.command('RUNNH');
+ const sequence=[b.getVar('A'),b.getVar('B')];
+ output='';await b.command('RUNNH');
+ assert.deepEqual([b.getVar('A'),b.getVar('B')],sequence);
+ await b.command('5 RANDOMIZE');
+ output='';await b.command('RUNNH');
+ assert.notDeepEqual([b.getVar('A'),b.getVar('B')],sequence);
+ console.log('PASS BASIC-11 function validation, TAB columns and RND reset');
  // A colon is ordinary BASIC-11 text, including in REM statements.
  await b.command('NEW REMCOLON');
  await b.command('10 REM PROGRAMMA DARBAM AR FAILU: SKOLENU SARAKSTS');
