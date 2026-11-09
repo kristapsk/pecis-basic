@@ -591,5 +591,51 @@ async function check(name, program, match, inputs=[]) {
  assert.deepEqual(require('./basic.js').splitStatements('PRINT #F: "HELLO" \\ PRINT "DONE"'),['PRINT #F: "HELLO"','PRINT "DONE"']);
  assert.deepEqual(require('./basic.js').splitStatements('PRINT "A:B" \\ PRINT "C"'),['PRINT "A:B"','PRINT "C"']);
  console.log('PASS BASIC-11 backslash-only separator and REM colons');
+ // LINPUT preserves a complete physical line, without INPUT field parsing.
+ await check('LINPUT: terminal source and whitespace',
+   '10 LINPUT S$\n20 PRINT S$',
+   /^ 20 PRINT "A,B"; "Ābols"  \n\nREADY\n$/,
+   [' 20 PRINT "A,B"; "Ābols"  ']);
+ await check('LINPUT: blank line, arrays and currency suffix',
+   '10 DIM S$(2)\n20 LINPUT S¤(1),S$(2)\n30 PRINT LEN(S$(1));":";S¤(2)',
+   /^0:SECOND,"VALUE"\n/,
+   ['', 'SECOND,"VALUE"']);
+ const oldLinputHook = b.hooks.input, linputSeen = [];
+ b.hooks.input = async prompt => { linputSeen.push({prompt, output}); return '  TEXT,"QUOTED"  '; };
+ try {
+   output=''; await b.command('PRINT "BEFORE";\\LINPUT #0:S$');
+   assert.equal(b.getVar('S$'),'  TEXT,"QUOTED"  ');
+   assert.deepEqual(linputSeen,[{prompt:'',output:'BEFORE'}]);
+ } finally { b.hooks.input = oldLinputHook; }
+ // Create a normal .BAS file as data, then read it without replacing the loader.
+ b.fileWrite('DK1:LINPUT.BAS','10 REM SOURCE\r\n20 PRINT "A,B"; "Ā"  \r\n\r\n30 END');
+ await check('LINPUT: BAS file, CRLF, blank lines and final unterminated line',
+   '10 OPEN "DK1:LINPUT.BAS" FOR INPUT AS FILE 4\n20 IF END #4 THEN 60\n30 LINPUT #4,S$\n40 PRINT "[";S$;"]"\n50 GOTO 20\n60 CLOSE 4',
+   /^\[10 REM SOURCE\]\n\[20 PRINT "A,B"; "Ā"  \]\n\[\]\n\[30 END\]\n\nREADY\n$/);
+ b.fileWrite('DK1:LMIX.DAT','1,2\n  NEXT,"RAW"  \n');
+ await b.command('OPEN "LMIX" FOR INPUT AS FILE 2');
+ await b.command('INPUT #2,N');
+ await b.command('LINPUT #2:S$');
+ assert.equal(b.getVar('S$'),'  NEXT,"RAW"  ');
+ await assert.rejects(b.command('LINPUT #2,S$'),/OUT OF DATA/);
+ await b.command('RESTORE #2');
+ await b.command('LINPUT #2,S$');
+ assert.equal(b.getVar('S$'),'1,2');
+ await b.command('CLOSE 2');
+ b.fileWrite('DK1:EMPTY.DAT','');
+ await b.command('OPEN "EMPTY" FOR INPUT AS FILE 2');
+ await assert.rejects(b.command('LINPUT #2,S$'),/OUT OF DATA/);
+ await b.command('CLOSE 2');
+ await assert.rejects(b.command('LINPUT N'),/TYPE MISMATCH/);
+ await assert.rejects(b.command('LINPUT #3,S$'),/FILE NOT OPEN/);
+ await assert.rejects(b.command('LINPUT #128,S$'),/BAD FILE NUMBER/);
+ await assert.rejects(b.command('LINPUT #0,S$,'),/SYNTAX ERROR/);
+ // Channel expressions must be evaluated only once.
+ answers=['EXPRESSION']; await b.command('LINPUT #0*RND,S$'); assert.equal(b.getVar('S$'),'EXPRESSION');
+ // EOF/cancellation from the host is BREAK; no synthetic "null" input.
+ b.hooks.input = async () => null;
+ try { await assert.rejects(b.command('LINPUT S$'),/BREAK/); }
+ finally { b.hooks.input = oldLinputHook; }
+ console.log('PASS BASIC-11 LINPUT terminal, file, EOF and validation');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

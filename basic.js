@@ -417,7 +417,7 @@
       if(word==='NEW'){this.lines.clear();this.resetState();this.programName=upper(rest.trim()||'PROGRAMMA');this.programCreated=new Date().toISOString();return;}
       if(word==='CLEAR'){this.resetState();return;}
       if(word==='CLS'||word==='HOME'){this.hooks.clear();return;}
-      if(word==='HELP'){this.print('RUN  LIST  LISTNH  SUB  NEW  RESEQ  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
+      if(word==='HELP'){this.print('RUN  LIST  LISTNH  SUB  NEW  RESEQ  RENUM  SAVE  LOAD  OLD  FILES  CLEAR  CLS\nPRINT  INPUT  LINPUT  LET  IF/THEN/ELSE  GOTO  FOR/NEXT  GOSUB/RETURN\nDIM  DATA/READ/RESTORE  ON/GOTO  END  STOP  REM\n');return;}
       if(word==='RENUM'){this.renumber(rest);return;}
       if(word==='RESEQ'){this.resequence(rest);return;}
       if(word==='SAVE'){this.save(rest);return;}
@@ -687,6 +687,42 @@
       try {this.printStatement(match[3]??'');channel.pending=this.outputBuffer;}
       finally {this.outputBuffer=output;this.hooks.print=print;}
     }
+    async lineInput(spec) {
+      // BASIC-11 LINPUT reads physical lines, without CSV or quote processing.
+      let channel = null, prompt = '? ', targetsText = spec;
+      if (/^\s*#/.test(spec)) {
+        const match = spec.match(/^\s*#\s*([^;:,]+)\s*[;:,]\s*(.+)$/);
+        if (!match) throw new BasicError('SYNTAX ERROR');
+        const number = this.number(this.evaluate(match[1]));
+        if (number === 0) prompt = '';
+        else {
+          if (!Number.isInteger(number) || number < 1 || number > 127) throw new BasicError('BAD FILE NUMBER');
+          channel = this.fileChannels.get(number);
+          if (!channel || channel.mode !== 'INPUT') throw new BasicError('FILE NOT OPEN');
+        }
+        targetsText = match[2];
+      }
+      const targets = splitOutside(targetsText, ',');
+      if (targets.some(target => !target.trim())) throw new BasicError('SYNTAX ERROR');
+      // INPUT # may have buffered fields from its preceding physical line.
+      if (channel) channel.values = [];
+      else if (this.outputBuffer) { this.print(this.outputBuffer); this.outputBuffer = ''; }
+      for (const text of targets) {
+        const target = this.parseTarget(text);
+        if (!target.name.endsWith('$')) throw new BasicError('TYPE MISMATCH');
+        let value;
+        if (channel) {
+          if (channel.index >= channel.lines.length) throw new BasicError('OUT OF DATA');
+          value = channel.lines[channel.index++];
+        } else {
+          value = await this.hooks.input(prompt);
+          if (this.cancel || value == null) throw new BasicError('BREAK');
+          value = String(value);
+        }
+        if (target.indices) this.setArray(target.name, target.indices, value);
+        else this.setVar(target.name, value);
+      }
+    }
     inputFile(spec) {
       const match=spec.match(/^#\s*([^;:,]+)\s*[;:,]\s*(.+)$/);
       if(!match)throw new BasicError('SYNTAX ERROR');
@@ -726,6 +762,7 @@
       if(/^REM/i.test(src)||src.startsWith("'"))return;
       const m=src.match(/^([A-Za-z]+\$?|\?)(?=\W|$)\s*(.*)$/s);
       const cmd=m?upper(m[1]):'';let rest=m?m[2]:src;
+      if(cmd==='LINPUT'){await this.lineInput(rest);return;}
       if(cmd==='KILL'){this.killFile(rest);return;}
       if(cmd==='OPEN'){this.openFile(rest);return;}
       if(cmd==='CLOSE'){this.closeFiles(rest);return;}
