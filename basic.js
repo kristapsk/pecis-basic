@@ -885,11 +885,27 @@
     findMatchingNext(instructions,pc){let depth=0;for(let i=pc+1;i<instructions.length;i++){if(/^FOR\s/i.test(instructions[i].statement))depth++;if(/^NEXT(?:\s|$)/i.test(instructions[i].statement)){if(depth===0)return i;depth--;}}throw new BasicError('FOR WITHOUT NEXT');}
     async run(rest='',showHeader=false) {
       if(this.running)throw new BasicError('PROGRAM ALREADY RUNNING');
+      // RUN [start-line][,step-limit]. An explicit zero disables only the
+      // instruction budget, not BREAK handling or periodic browser yielding.
+      const arg=rest.trim();
+      let startLine=null,stepLimit=this.stepLimit,unlimited=false;
+      if(arg){
+        const args=arg.split(',').map(part=>part.trim());
+        if(args.length>2 || (args[0] && !/^\d+$/.test(args[0])) ||
+           (args.length===1 && !args[0]))throw new BasicError('SYNTAX ERROR');
+        if(args[0])startLine=Number(args[0]);
+        if(args.length===2){
+          if(!/^\d+$/.test(args[1]))throw new BasicError('SYNTAX ERROR');
+          stepLimit=Number(args[1]);
+          if(!Number.isSafeInteger(stepLimit))throw new BasicError('SYNTAX ERROR');
+          unlimited=stepLimit===0;
+        }
+      }
       const compiled=this.getCompiled();this.resetState();this.cancel=false;
       const ctx={pc:0,jump:null,stopped:false,interactive:false,compiled,loops:[],callStack:[],dataIndex:0};
-      if(rest.trim()){
-        const arg=rest.trim();if(!/^\d+$/.test(arg))throw new BasicError('SYNTAX ERROR');
-        if(!compiled.locations.has(Number(arg)))throw new BasicError('RINDA NAV ATRASTA');ctx.pc=compiled.locations.get(Number(arg));
+      if(startLine!==null){
+        if(!compiled.locations.has(startLine))throw new BasicError('RINDA NAV ATRASTA');
+        ctx.pc=compiled.locations.get(startLine);
       }
       let steps=0,currentLine=null;
       this.running=true;this.hooks.status('RUNNING');
@@ -897,7 +913,7 @@
         if(showHeader)this.print('\n'+this.listHeader()+'\n\n');
         while(ctx.pc<compiled.instructions.length&&!ctx.stopped) {
           if(this.cancel)throw new BasicError('BREAK');
-          if(++steps>this.stepLimit)throw new BasicError('OUT OF TIME');
+          if(++steps>stepLimit&&!unlimited)throw new BasicError('OUT OF TIME');
           const ins=compiled.instructions[ctx.pc];currentLine=ins.line;ctx.jump=null;
           try {await this.execute(ins.statement,ctx);} catch(err){if(err instanceof BasicError&&err.line===null)err.line=currentLine;throw err;}
           ctx.pc=ctx.jump!==null?ctx.jump:ctx.pc+1;

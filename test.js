@@ -637,5 +637,66 @@ async function check(name, program, match, inputs=[]) {
  try { await assert.rejects(b.command('LINPUT S$'),/BREAK/); }
  finally { b.hooks.input = oldLinputHook; }
  console.log('PASS BASIC-11 LINPUT terminal, file, EOF and validation');
+
+ // RUN/RUNNH accept an optional instruction budget for this invocation only.
+ let runOutput='';
+ const runner=new Interpreter({print:text=>runOutput+=text});
+ runner.stepLimit=2;
+ runner.import('10 PRINT "SKIP"\n20 PRINT "TARGET"\n30 END');
+ await assert.rejects(runner.command('RUNNH'),/OUT OF TIME/);
+ runOutput='';await runner.command('RUNNH ,3');
+ assert.equal(runOutput,'SKIP\nTARGET\n\nREADY\n');
+ assert.equal(runner.stepLimit,2);
+ await assert.rejects(runner.command('RUNNH'),/OUT OF TIME/);
+ runOutput='';await runner.command('RUNNH 20,2');
+ assert.equal(runOutput,'TARGET\n\nREADY\n');
+ runOutput='';await runner.command('RUNNH 20');
+ assert.equal(runOutput,'TARGET\n\nREADY\n');
+ runOutput='';await runner.command('RUN 20,2');
+ assert.match(runOutput,/^\nPROGRAMMA\s+/);
+ assert.match(runOutput,/TARGET\n\nREADY\n$/);
+ assert.doesNotMatch(runOutput,/SKIP/);
+ runOutput='';await runner.command('RUN ,3');
+ assert.match(runOutput,/^\nPROGRAMMA\s+/);
+ assert.match(runOutput,/SKIP\nTARGET\n\nREADY\n$/);
+ runOutput='';await runner.run('20,2');
+ assert.equal(runOutput,'TARGET\n\nREADY\n');
+ await assert.rejects(runner.command('RUNNH 999,0'),/RINDA NAV ATRASTA/);
+ for(const args of [',',',-1',',1.5',',1e3',',NaN',',Infinity',',9007199254740992',
+                   '10,','10,1,2','10,,1','-10,2','10+10,2']){
+   await assert.rejects(runner.command('RUNNH '+args),/SYNTAX ERROR/,args);
+ }
+ // The last permitted instruction executes; the following one exceeds the budget.
+ runner.import('10 A=1\n20 A=A+1\n30 END');
+ await runner.command('RUNNH ,3');
+ assert.equal(runner.getVar('A'),2);
+ await assert.rejects(runner.command('RUNNH ,2'),/OUT OF TIME/);
+ // A zero budget override is unlimited, and still yields to the event loop.
+ runner.import('10 FOR I=1 TO 300\n20 NEXT I\n30 PRINT "DONE"\n40 END');
+ let runYielded=false;
+ const yieldTimer=setTimeout(()=>{runYielded=true;},0);
+ try {runOutput='';await runner.command('RUNNH ,0');}
+ finally {clearTimeout(yieldTimer);}
+ assert.equal(runOutput,'DONE\n\nREADY\n');
+ assert.equal(runYielded,true);
+ assert.equal(runner.stepLimit,2);
+ await assert.rejects(runner.command('RUNNH'),/OUT OF TIME/);
+ runOutput='';await runner.command('RUNNH ,1000');
+ assert.equal(runOutput,'DONE\n\nREADY\n');
+ // Unlimited execution remains interruptible by the host/UI.
+ runner.import('10 GOTO 10');
+ const breakTimer=setTimeout(()=>runner.stop(),0);
+ try {await assert.rejects(runner.command('RUNNH ,0'),/BREAK/);}
+ finally {clearTimeout(breakTimer);}
+ assert.equal(runner.running,false);
+ assert.equal(runner.stepLimit,2);
+ // A fresh RUN starts its counter at zero, including after BREAK and errors.
+ runner.import('10 A=7\n20 END');
+ await runner.command('RUNNH');
+ await runner.command('RUNNH');
+ assert.equal(runner.getVar('A'),7);
+ await assert.rejects(runner.command('RUNNH ,1'),/OUT OF TIME/);
+ await runner.command('RUNNH');
+ console.log('PASS RUN/RUNNH per-run limits, default restoration, unlimited yielding and BREAK');
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});
