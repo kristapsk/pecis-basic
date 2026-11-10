@@ -698,5 +698,32 @@ async function check(name, program, match, inputs=[]) {
  await assert.rejects(runner.command('RUNNH ,1'),/OUT OF TIME/);
  await runner.command('RUNNH');
  console.log('PASS RUN/RUNNH per-run limits, default restoration, unlimited yielding and BREAK');
+ // Colon is an optional statement separator, but not inside REM or strings.
+ const {splitStatements:splitColon}=require('./basic.js');
+ assert.deepEqual(splitColon('REM PROGRAMMA DARBAM AR FAILU: SKOLENU SARAKSTS'),
+   ['REM PROGRAMMA DARBAM AR FAILU: SKOLENU SARAKSTS']);
+ assert.deepEqual(splitColon('PRINT "A:B":PRINT "C"'),['PRINT "A:B"','PRINT "C"']);
+ assert.deepEqual(splitColon('PRINT «A:B»: PRINT "C"'),['PRINT "A:B"','PRINT "C"']);
+ assert.deepEqual(splitColon('A=1:REM SKAITS: 2\\A=A+1'),['A=1','REM SKAITS: 2','A=A+1']);
+ assert.deepEqual(splitColon('PRINT #F: "A": PRINT #F: "B"'),
+   ['PRINT #F: "A"','PRINT #F: "B"']);
+ await check('colon in REM remains a comment',
+   '10 REM PROGRAMMA DARBAM AR FAILU: SKOLENU SARAKSTS\n20 PRINT "OK"', /OK/);
+ await check('colon in string and colon-separated statements',
+   '10 PRINT "A:B": PRINT "C"\n20 END', /A:B\nC/);
+ await check('colon in IF THEN branch',
+   '10 A=1\n20 IF A=1 THEN PRINT "YES": PRINT "MORE" ELSE PRINT "NO"', /YES\nMORE/);
+ assert.doesNotMatch(output,/NO/);
+ await check('colon after numeric THEN target',
+   '10 A=0\n20 IF A=1 THEN 50: PRINT "NEXT"\n30 END\n50 PRINT "WRONG"', /NEXT/);
+ assert.doesNotMatch(output,/WRONG/);
+ await check('colon and backslash mixed',
+   '10 A=1: REM COMMENT: TEXT \\ A=A+2\n20 PRINT A', /^3\n/);
+ console.log('PASS colon compatibility without breaking BASIC-11 REM and PRINT');
+ // LINPUT #channel:target uses a colon as file-I/O syntax, not a separator.
+ assert.deepEqual(splitColon('PRINT "BEFORE";\\LINPUT #0:S$'),
+   ['PRINT "BEFORE";','LINPUT #0:S$']);
+ assert.deepEqual(splitColon('LINPUT #2:S$:PRINT "AFTER"'),
+   ['LINPUT #2:S$','PRINT "AFTER"']);
  console.log('ALL TESTS PASSED');
 })().catch(e=>{console.error('FAIL:',e.stack);process.exit(1)});

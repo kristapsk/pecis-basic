@@ -39,10 +39,10 @@
     return -1;
   }
   function splitStatements(source) {
-    // BASIC-11 accepts both ASCII quotes and book-style guillemets («...»).
+    // BASIC-11 uses backslash; also accept colon for other BASIC dialects.
+    // Do not treat colons in strings, REM comments or PRINT/INPUT #F: as separators.
     // Normalize only for execution; LIST retains the original program text.
-    // Backslashes outside strings separate statements.
-    let normalized = '', quote = null;
+    let normalized = '', quote = null, segmentStart = 0;
     for (let i = 0; i < source.length; i++) {
       const ch = source[i];
       if (quote === '"') {
@@ -57,12 +57,22 @@
         else normalized += ch;
       } else if (ch === '"') { quote = '"'; normalized += ch; }
       else if (ch === '«') { quote = '»'; normalized += '"'; }
-      // Only backslash separates BASIC-11 statements. Colons are literal,
-      // including in REM text and in PRINT #F: or INPUT #F: syntax.
-      else normalized += ch;
+      else if (ch === '\\') {
+        normalized += ch;
+        segmentStart = normalized.length;
+      } else if (ch === ':') {
+        const segment = normalized.slice(segmentStart);
+        // REM consumes colons until the next backslash (including after THEN).
+        const inComment = /^\s*(?:REM|')/i.test(segment) ||
+          /\b(?:THEN|ELSE)\s+REM/i.test(segment);
+        // The first colon in PRINT, INPUT and LINPUT #F: is file-I/O syntax.
+        const fileColon = /(?:^|\bTHEN\s+|\bELSE\s+)\s*(?:PRINT|INPUT|LINPUT)\s*#\s*(?:[A-Z_][A-Z0-9_]*|\d+)\s*$/i.test(segment);
+        if (inComment || fileColon) normalized += ':';
+        else { normalized += '\\'; segmentStart = normalized.length; }
+      } else normalized += ch;
     }
-    // A numeric THEN target is a jump, so statements after \ run only
-    // when the condition is false. THEN PRINT ... \ PRINT ... stays one branch.
+    // A numeric THEN target is a jump, so later statements are independent.
+    // THEN PRINT ... \ PRINT ... or THEN PRINT ... : PRINT ... stays one branch.
     const tokens = splitOutside(normalized, '\\'); const results = [];
     for (let i = 0; i < tokens.length; i++) {
       const item = tokens[i].trim();
